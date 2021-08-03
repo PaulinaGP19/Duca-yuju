@@ -15,7 +15,7 @@
     'author': "Israel Calderón Aguilar, Gerardo A Lopez Vega",
     'website': "https://yuju.io/",
     'category': 'Sales',
-    'version': '0.1.14',
+    'version': '0.1.17',
 
     # any module necessary for this one to work correctly
     'depends': [

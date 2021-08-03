@@ -22,6 +22,7 @@ class MadktingConfig(models.Model):
     product_custom_fields = fields.Text("Product Custom fields")
     dropship_enabled = fields.Boolean('Dropshiping Enabled')
     orders_unconfirmed = fields.Boolean('Order not confirmed', help='Deja las ordenes sin confirmar')
+    update_parent_list_price = fields.Boolean('Update Parent Price', help='Actualiza el precio del producto padre en caso de tener variantes')
     
     @api.model
     def create_config(self, configs):
@@ -97,9 +98,9 @@ class MadktingWebhook(models.Model):
     active = fields.Boolean('Active', default=True, required=True)
     company_id = fields.Many2one('res.company', 'Company')
 
-    _sql_constraints = [
-        ('unique_webhook_company', 'unique(hook_type,company_id)', 'The webhook should be unique per company')
-    ]
+    # _sql_constraints = [
+    #     ('unique_webhook_company', 'unique(hook_type,company_id)', 'The webhook should be unique per company')
+    # ]
 
     @api.model
     def get(self, hook_id=None, hook_type=None):

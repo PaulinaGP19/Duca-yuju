@@ -106,9 +106,9 @@ class ProductProduct(models.Model):
         :return:
         :rtype: dict
         """
-        logger.debug("### UPDATE PRODUCT ###")
-        logger.debug(product_data)
-        logger.debug(id_shop)
+        # logger.info("### UPDATE PRODUCT ###")
+        # logger.info(product_data)
+        # logger.info(id_shop)
         product_id = product_data.pop('id', None)
         if not product_id:
             return results.error_result('missing_product_id',
@@ -204,11 +204,20 @@ class ProductProduct(models.Model):
         if is_multi_shop and product.company_id:
             fields_validation['data']['company_id'] = False
         
-        logger.debug("#### DATA TO WRITE ####")
-        logger.debug(fields_validation['data'])
+        # logger.debug("#### DATA TO WRITE ####")
+        # logger.debug(fields_validation['data'])
+
+        if "barcode" in fields_validation["data"] and fields_validation["data"]["barcode"] == "":
+            # Drop empty barcode because constraint product_product_barcode_uniq
+            fields_validation["data"].pop("barcode")
 
         try:
             product.write(fields_validation['data'])
+            if config and config.update_parent_list_price and fields_validation['data'].get('list_price'):
+                logger.info("## UPDATE PARENT PRICE {}##".format(product.product_tmpl_id))
+                product_list_price = fields_validation['data'].get('list_price')
+                product.product_tmpl_id.write({"list_price" : product_list_price})
+
         except exceptions.AccessError as ae:
             logger.exception(ae)
             return results.error_result('access_error', ae)
@@ -557,6 +566,9 @@ class ProductProduct(models.Model):
 
         else:
             updatable_fields = self.__update_variation_fields
+
+            if config and config.update_parent_list_price:
+                updatable_fields.update({'list_price': (int, float)})
 
         for field, value in fields.items():
             if field in updatable_fields:

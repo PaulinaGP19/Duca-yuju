@@ -16,6 +16,13 @@ class SaleOrder(models.Model):
 
     channel = fields.Char('Marketplace')
     channel_id = fields.Integer('Channel Id')
+    yuju_shop_id = fields.Integer('Yuju Shop Id')
+    yuju_marketplace_fee = fields.Float("Marketplace Fee")
+    fulfillment = fields.Selection([
+        ('fbf', 'Flex'),
+        ('fbm', 'Seller'),
+        ('fbc', 'Full'),
+        ], string="Fulfillment")
     channel_order_reference = fields.Char('Marketplace Reference')
     channel_order_id = fields.Char('Marketplace Id')
     channel_order_market_fee = fields.Float('Marketplace Fee')

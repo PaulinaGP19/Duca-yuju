@@ -65,7 +65,7 @@ class ProductTemplate(models.Model):
         :return:
         :rtype: dict
         """
-        logger.info("### PRODUCT DATA ###")
+        # logger.info("### MDK CREATE PRODUCT DATA ###")
         # logger.info(product_data)
         config = self.env['madkting.config'].get_config()
         mapping = self.env['yuju.mapping.product']

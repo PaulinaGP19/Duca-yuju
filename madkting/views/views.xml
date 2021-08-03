@@ -11,7 +11,6 @@
           <field name="url"/>
           <field name="company_id"/>
           <field name="active"/>
-          
         </tree>
       </field>
     </record>
@@ -58,6 +57,7 @@
           <field name="product_custom_fields"/>
           <field name="dropship_enabled"/>
           <field name="orders_unconfirmed"/>
+          <field name="update_parent_list_price"/>
         </tree>
       </field>
     </record>
@@ -77,6 +77,7 @@
               <field name="orders_unconfirmed"/>
             </group>
             <group>
+              <field name="update_parent_list_price"/>
               <field name="simple_description_enabled"/>
               <field name="update_order_name"/>
               <field name="product_custom_fields"/>
@@ -216,6 +217,10 @@
       <field name="arch" type="xml">
         <field name="client_order_ref" position="after">
           <field name="channel" attrs="{'readonly':[(1,'=',1)]}"/>
+          <field name="channel_id" attrs="{'readonly':[(1,'=',1)]}"/>
+          <field name="yuju_shop_id" attrs="{'readonly':[(1,'=',1)]}"/>
+          <field name="yuju_marketplace_fee" attrs="{'readonly':[(1,'=',1)]}"/>
+          <field name="fulfillment" attrs="{'readonly':[(1,'=',1)]}"/>
           <field name="channel_order_reference" attrs="{'readonly':[(1,'=',1)]}" />
           <field name="payment_id" attrs="{'readonly':[(1,'=',1)]}" />
         </field>
