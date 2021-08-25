@@ -43,15 +43,16 @@ class MadktingStockMoveListener(Component):
 
         record_state = getattr(record, 'state', None)        
       
-        if config.stock_quant_available_quantity_enabled:
-            if record_state in ['assigned', 'done'] and record.product_id.id_product_madkting:               
-                try:
-                    notifier.send_stock_webhook(self.env, record.product_id.id, record.company_id.id)
-                except Exception as ex:
-                    logger.exception(ex)
-        else:    
-            if record_state == 'done' and record.product_id.id_product_madkting:
-                try:
-                    notifier.send_stock_webhook(self.env, record.product_id.id, record.company_id.id)
-                except Exception as ex:
-                    logger.exception(ex)
+        # if config.stock_quant_available_quantity_enabled:
+        if record_state in ['assigned', 'done'] and record.product_id.id_product_madkting:            
+            try:
+                notifier.send_stock_webhook(self.env, record)
+                # notifier.send_stock_webhook(self.env, record.product_id.id, record.company_id.id)
+            except Exception as ex:
+                logger.exception(ex)
+        # else:    
+        #     if record_state == 'done' and record.product_id.id_product_madkting:
+        #         try:
+        #             notifier.send_stock_webhook(self.env, record.product_id.id, record.company_id.id)
+        #         except Exception as ex:
+        #             logger.exception(ex)

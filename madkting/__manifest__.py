@@ -15,7 +15,7 @@
     'author': "Israel Calderón Aguilar, Gerardo A Lopez Vega",
     'website': "https://yuju.io/",
     'category': 'Sales',
-    'version': '0.1.17',
+    'version': '0.2.0',
 
     # any module necessary for this one to work correctly
     'depends': [
@@ -48,3 +48,10 @@
         "views/**/*",  # exclude all files in a folder hierarchy recursively
     ]
 }
+
+# Version 0.2.0
+# *** Agrega parametros a la configuracion para poder customizar el flujo de dropship
+#       - Define una ruta default
+#       - Define una ruta para cuando es dropship
+#       - Define una ruta para cuando es MTO
+#       - Agrega un campo en el producto para indicar si se procesara como dropship o MTO

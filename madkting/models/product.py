@@ -20,6 +20,11 @@ class ProductProduct(models.Model):
     _inherit = "product.product"
 
     id_product_madkting = fields.Char('Id product madkting', size=50)
+    tipo_producto_yuju = fields.Selection([('dropship', 'Dropship'), ('mto', 'MTO')],
+                                            string='Tipo Ruta Producto', 
+                                            help='En caso de no tener stock como se procesará Yuju el pedido para este producto, \n'
+                                                 'Dropship: Lo surte el proveedor \n' 
+                                                 'MTO: Se compra y lo surte la empresa')
 
     _sql_constraints = [('id_product_madkting_uniq', 'unique (id_product_madkting,active)',
                          'The relationship between products of madkting and odoo must be one to one!')]

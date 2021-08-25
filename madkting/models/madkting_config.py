@@ -15,14 +15,21 @@ class MadktingConfig(models.Model):
     _description = 'Config'
 
     stock_quant_available_quantity_enabled = fields.Boolean('Stock Quant Available Qty Enabled', default=False)
-    stock_source = fields.Char('Stock Location')
+    stock_source = fields.Many2one('stock.location', string="Ubicacion de Stock", domain=[('usage', '=', 'internal')])
     webhook_stock_enabled = fields.Boolean('Stock webhooks enabled', default=False)
     simple_description_enabled = fields.Boolean('Simple Description product enabled', default=False)
     update_order_name = fields.Boolean("Update Order Name with Channel Ref")
+    update_order_name_pack = fields.Boolean("Update Order Name with Pack")
     product_custom_fields = fields.Text("Product Custom fields")
-    dropship_enabled = fields.Boolean('Dropshiping Enabled')
     orders_unconfirmed = fields.Boolean('Order not confirmed', help='Deja las ordenes sin confirmar')
     update_parent_list_price = fields.Boolean('Update Parent Price', help='Actualiza el precio del producto padre en caso de tener variantes')
+
+    dropship_enabled = fields.Boolean('Dropshiping Enabled')
+    dropship_webhook_enabled = fields.Boolean('Dropshiping Webhook Enabled')
+    dropship_stock_enabled = fields.Boolean('Stock Dropshiping Enabled')
+    dropship_default_route_id = fields.Many2one('stock.location.route', string='Ruta Default para Dropshiping')
+    dropship_route_id = fields.Many2one('stock.location.route', string='Ruta para Dropshiping')
+    dropship_mto_route_id = fields.Many2one('stock.location.route', string='Ruta para MTO')
     
     @api.model
     def create_config(self, configs):

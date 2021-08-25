@@ -17,6 +17,7 @@ class SaleOrder(models.Model):
     channel = fields.Char('Marketplace')
     channel_id = fields.Integer('Channel Id')
     yuju_shop_id = fields.Integer('Yuju Shop Id')
+    yuju_pack_id = fields.Char('Yuju Pack Id')
     yuju_marketplace_fee = fields.Float("Marketplace Fee")
     fulfillment = fields.Selection([
         ('fbf', 'Flex'),
@@ -136,11 +137,18 @@ class SaleOrder(models.Model):
             return results.error_result(code='sale_config_error',
                                         description='No config found for this company')
 
-        if config.dropship_enabled:
-            rutas = self.env['stock.location.route'].sudo().search([('name', '=', 'Dropship')], limit=1)
-            if not rutas.id:
+        if config and config.dropship_enabled:
+            route_ids = []
+            if config.dropship_default_route_id:
+                route_ids.append(config.dropship_default_route_id.id)
+            if config.dropship_route_id:
+                route_ids.append(config.dropship_route_id.id)
+            if config.dropship_mto_route_id:
+                route_ids.append(config.dropship_mto_route_id.id)
+            
+            if not route_ids:
                 return results.error_result(code='sale_config_dropship_error',
-                                        description='No config routes found for dropship')                                        
+                                            description='No config routes found for dropship')   
 
         logger.debug("## FIELD ERRORS ##")
         field_errors = self._validate_order_fields(order_data=order_data)
@@ -175,8 +183,12 @@ class SaleOrder(models.Model):
         try:
             new_sale = self.create(order_data)
 
-            if new_sale and config and config.update_order_name:
-                new_sale.write({"name" : order_data.get("channel_order_reference")})
+            if new_sale:
+                if config.update_order_name:
+                    new_sale.write({"name" : order_data.get("channel_order_reference")})
+
+                if config.update_order_name_pack and new_sale.yuju_pack_id:
+                    new_sale.write({"name" : order_data.get("yuju_pack_id")})
 
         except exceptions.AccessError as err:
             logger.exception(err)
@@ -198,23 +210,28 @@ class SaleOrder(models.Model):
                 line['order_id'] = new_sale.id
 
                 if config.dropship_enabled and new_sale.warehouse_id.dropship_enabled:
-                    logger.info("## AGREGAR RUTA DROPSHIP ###")
-                    logger.info("## PEDIDO: {} ###".format(new_sale.name))
+                    route = config.dropship_default_route_id
+                    logger.debug("## AGREGAR RUTA DROPSHIP ###")
+                    logger.debug("## RUTA: {} ###".format(route.name))
                     product = self.env['product.product'].search([('id', '=', int(line.get('product_id')))], limit=1)
                     if product.id and product.type == 'product':
-                        logger.info("## ID RUTA: {}".format(rutas.id))
+                        logger.debug("## ID RUTA: {}".format(route.id))
                         location_stock = new_sale.warehouse_id.lot_stock_id
-                        logger.info("## LOCATION STOCK: {}".format(location_stock.id))
+                        logger.debug("## LOCATION STOCK: {}".format(location_stock.id))
                         qty_in_branch = self.env['stock.quant']._get_available_quantity(product, location_stock)
-                        logger.info("## QTY IN BRANCH: {}".format(qty_in_branch))
+                        logger.debug("## QTY IN BRANCH: {}".format(qty_in_branch))
                         if qty_in_branch < line.get('product_uom_qty', 0):
-                            line.update({"route_id" : rutas.id})
+                            if product.tipo_producto_yuju and product.tipo_producto_yuju == "dropship":
+                                route = config.dropship_route_id
+                            elif product.tipo_producto_yuju and product.tipo_producto_yuju == "mto":
+                                route = config.dropship_mto_route_id
+                            line.update({"route_id" : route.id})
 
                 if config.orders_unconfirmed:
                     line.update({'state' : 'draft'})
 
                 try:
-                    logger.info(line)
+                    logger.debug(line)
                     new_line = order_line_model.sudo().create(line)
                 except exceptions.AccessError as err:
                     logger.exception(err)
@@ -260,7 +277,7 @@ class SaleOrder(models.Model):
                 if not config.orders_unconfirmed:
                     new_sale.action_confirm()
                 else:
-                    logger.info('orders_unconfirmed, the order should be confirmed manually')
+                    logger.debug('orders_unconfirmed, the order should be confirmed manually')
             except Exception as ex:
                 new_sale.unlink()
                 logger.exception(ex)
@@ -463,12 +480,19 @@ class SaleOrder(models.Model):
                     picking_type_id = picking_type.id
             return picking_type_id
 
-        if config and config.dropship_enabled:
-            rutas = self.env['stock.location.route'].sudo().search([('name', '=', 'Dropship')], limit=1)
-            if rutas.id:
+        if config and config.dropship_enabled:            
+            route_ids = []
+            if config.dropship_default_route_id:
+                route_ids.append(config.dropship_default_route_id.id)
+            if config.dropship_route_id:
+                route_ids.append(config.dropship_route_id.id)
+            if config.dropship_mto_route_id:
+                route_ids.append(config.dropship_mto_route_id.id)
+
+            if route_ids:
                 create_delivery = False
                 for order_line in order.order_line:
-                    if not order_line.route_id or (order_line.route_id and order_line.route_id.id != rutas.id):
+                    if not order_line.route_id or (order_line.route_id and order_line.route_id.id not in route_ids):
                         create_delivery = True
                         break
                 if not create_delivery:
@@ -498,8 +522,15 @@ class SaleOrder(models.Model):
             product_uom_qty = order_line.product_uom_qty
 
             if config and config.dropship_enabled:
-                rutas = self.env['stock.location.route'].sudo().search([('name', '=', 'Dropship')], limit=1)
-                if rutas.id and order_line.route_id and order_line.route_id.id == rutas.id:
+                route_ids = []
+                if config.dropship_default_route_id:
+                    route_ids.append(config.dropship_default_route_id.id)
+                if config.dropship_route_id:
+                    route_ids.append(config.dropship_route_id.id)
+                if config.dropship_mto_route_id:
+                    route_ids.append(config.dropship_mto_route_id.id)
+               
+                if route_ids and order_line.route_id and order_line.route_id.id in route_ids:
                     continue
 
             stock_picking['move_lines'].append((0, 0, {
@@ -520,7 +551,7 @@ class SaleOrder(models.Model):
                     'note': 'Delivery for order from madkting',
                     'origin': order.name,
                     'procure_method': 'make_to_stock',
-                    'propagate': True,
+                    # 'propagate': True,
                     'picking_type_id': _get_picking_type(),
                     'inventory_id': False,
                     'restrict_partner_id': False,

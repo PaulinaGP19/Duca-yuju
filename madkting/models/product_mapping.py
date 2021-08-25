@@ -28,7 +28,7 @@ class YujuMapping(models.Model):
         mapping_ids = self.search_count([('company_id', '=', company_id)])
         if mapping_ids == 0:
             return False
-        return self.search([('company_id', '=', company_id)], limit=1)
+        return self.search([('company_id', '=', company_id)])
 
     @api.model
     def create_mapping(self, mapping):            

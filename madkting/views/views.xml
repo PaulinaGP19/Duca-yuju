@@ -54,8 +54,13 @@
           <field name="webhook_stock_enabled"/>
           <field name="simple_description_enabled"/>
           <field name="update_order_name"/>
+          <field name="update_order_name_pack"/>
           <field name="product_custom_fields"/>
           <field name="dropship_enabled"/>
+          <field name="dropship_webhook_enabled"/>
+          <field name="dropship_default_route_id"/>
+          <field name="dropship_route_id"/>
+          <field name="dropship_mto_route_id"/>
           <field name="orders_unconfirmed"/>
           <field name="update_parent_list_price"/>
         </tree>
@@ -74,12 +79,17 @@
               <field name="stock_source"/>
               <field name="webhook_stock_enabled"/>
               <field name="dropship_enabled"/>
-              <field name="orders_unconfirmed"/>
+              <field name="dropship_webhook_enabled"/>
+              <field name="dropship_default_route_id" attrs="{'required' : [('dropship_enabled', '=', True)]}"/>
+              <field name="dropship_route_id" attrs="{'required' : [('dropship_enabled', '=', True)]}"/>
+              <field name="dropship_mto_route_id" attrs="{'required' : [('dropship_enabled', '=', True)]}"/>
             </group>
             <group>
+              <field name="orders_unconfirmed"/>
               <field name="update_parent_list_price"/>
               <field name="simple_description_enabled"/>
               <field name="update_order_name"/>
+              <field name="update_order_name_pack"/>
               <field name="product_custom_fields"/>
             </group>
           </group>
@@ -219,9 +229,11 @@
           <field name="channel" attrs="{'readonly':[(1,'=',1)]}"/>
           <field name="channel_id" attrs="{'readonly':[(1,'=',1)]}"/>
           <field name="yuju_shop_id" attrs="{'readonly':[(1,'=',1)]}"/>
+          <field name="yuju_pack_id" attrs="{'readonly':[(1,'=',1)]}"/>
           <field name="yuju_marketplace_fee" attrs="{'readonly':[(1,'=',1)]}"/>
           <field name="fulfillment" attrs="{'readonly':[(1,'=',1)]}"/>
           <field name="channel_order_reference" attrs="{'readonly':[(1,'=',1)]}" />
+          <!-- <field name="channel_order_reference" /> -->
           <field name="payment_id" attrs="{'readonly':[(1,'=',1)]}" />
         </field>
       </field>
@@ -237,6 +249,21 @@
         </field>
       </field>
     </record>
+
+    <record id="view_product_yuju_form" model="ir.ui.view">
+      <field name="name">View Product Yuju Form</field>
+      <field name="model">product.product</field>
+      <field name="inherit_id" ref="product.product_normal_form_view"/>
+      <field name="arch" type="xml">
+        <field name="categ_id" position="after">
+          <separator string="Yuju"/>
+          <field name="id_product_madkting" attrs="{'readonly' : [(1,'=',1)]}"/>
+          <field name="tipo_producto_yuju"/>
+        </field>
+      </field>
+    </record>
+
+    
     
   </data>
 </odoo>
