@@ -64,15 +64,20 @@ class ProductTemplate(models.Model):
         :rtype: dict
         """
         logger.info("### MULTI IMAGENES MODULE ###")
+
         multi_images = []
         if "multi_images" in product_data:
             multi_images = product_data.pop("multi_images")
             logger.info(len(multi_images))
+            if "variations" in product_data and product_data["variations"]:
+                for v_data in product_data["variations"]:
+                    if "multi_images" in v_data:
+                        v_data.pop("multi_images")
 
         res = super(ProductTemplate, self).mdk_create(product_data, id_shop)
         logger.info("## RESPONSE ##")
         logger.info(res)
-        
+
         if res and res["success"]:
 
             if multi_images:
