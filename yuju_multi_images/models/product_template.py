@@ -71,9 +71,9 @@ class ProductTemplate(models.Model):
 
         res = super(ProductTemplate, self).mdk_create(product_data, id_shop)
         logger.info("## RESPONSE ##")
-        logger.info(res.get("data", {}).get('id'))
-        logger.info(res.get("data", {}).get('template_id'))
-        if res["success"]:
+        logger.info(res)
+        
+        if res and res["success"]:
 
             if multi_images:
                 
