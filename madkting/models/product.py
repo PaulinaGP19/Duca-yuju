@@ -290,8 +290,8 @@ class ProductProduct(models.Model):
         :return:
         :rtype: dict
         """
-        logger.debug("### CREATE VARIATION ###")
-        logger.debug(variation_data)
+        logger.info("### CREATE VARIATION ###")
+        logger.info(variation_data)
         parent_id = variation_data.pop('product_id', None)
         if not parent_id:
             return results.error_result('missing_product_id',
