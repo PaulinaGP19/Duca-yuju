@@ -344,6 +344,9 @@ class ProductProduct(models.Model):
         current_variations_set = parent.get_variation_sets()
         v_data = fields_validation['data']
 
+        logger.info("### attribute values ###")
+        logger.info(attribute_values)
+
         logger.info("### current variation set ###")
         logger.info(current_variations_set)
 
