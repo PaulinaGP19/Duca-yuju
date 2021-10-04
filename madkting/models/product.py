@@ -321,6 +321,12 @@ class ProductProduct(models.Model):
         invalid_attributes = list()
         attribute_values = set()
 
+        logger.info("### attribute structure ###")
+        logger.info(attributes_structure)
+
+        logger.info("### variant_attributes ###")
+        logger.info(variant_attributes)
+
         if 'image' in fields_validation['data']:
             fields_validation['data']['image_1920'] = fields_validation['data'].pop('image', None)
 
@@ -338,9 +344,16 @@ class ProductProduct(models.Model):
         current_variations_set = parent.get_variation_sets()
         v_data = fields_validation['data']
 
+        logger.info("### current variation set ###")
+        logger.info(current_variations_set)
+
+        logger.info("### validation data ###")
+        logger.info(v_data)
+
         mapping = self.env['yuju.mapping.product']
 
         if attribute_values in current_variations_set:
+            logger.info("### Step 1 ###")
             for variation in parent.product_variant_ids:
                 if variant_attributes == variation.get_data().get('attributes'):                    
                     if id_shop:
@@ -366,6 +379,8 @@ class ProductProduct(models.Model):
 
         new_variation_values_ids = list()
         new_attribute_lines = []
+
+        logger.info("### Step 2 ###")
         for attribute, value in variant_attributes.items():
             # logger.in0fo(attributes_structure)
             value_id = attributes_structure[attribute].get('values').get(value)
@@ -416,6 +431,7 @@ class ProductProduct(models.Model):
         new_variation_data = None
         v_data = fields_validation['data']
 
+        logger.info("### Step 3 ###")
         for variation in parent.product_variant_ids:
             if variant_attributes == variation.get_data().get('attributes'):
                 # logger.info(fields_validation['data'])
