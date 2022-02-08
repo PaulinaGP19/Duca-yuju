@@ -15,12 +15,12 @@ def send_stock_webhook(env, move, hook_id=None):
     :type hook_id: int
     :return:
     """
-    logger.info('### SEND STOCK WEBHOOK ###')
+    logger.debug('### SEND STOCK WEBHOOK ###')
     product = move.product_id
     product_id = product.id
-    logger.info("Producto: {}".format(product_id))
+    logger.debug("Producto: {}".format(product_id))
     company_id = move.company_id.id
-    logger.info("Company: {}".format(company_id))
+    logger.debug("Company: {}".format(company_id))
     # product = env['product.product'].search([('id', '=', product_id)], limit=1)
     config = env['madkting.config'].sudo().get_config()
         
@@ -34,7 +34,7 @@ def send_stock_webhook(env, move, hook_id=None):
 
         if config.dropship_enabled and not config.dropship_webhook_enabled:
             if product.tipo_producto_yuju and qty_in_branch < 1:
-                logger.info("### NO STOCK ON DROPSHIP WEBHOOK DISABLED ###")
+                logger.debug("### NO STOCK ON DROPSHIP WEBHOOK DISABLED ###")
                 return
 
     else:

@@ -15,7 +15,7 @@
     'author': "Israel Calderón Aguilar, Gerardo A Lopez Vega",
     'website': "https://yuju.io/",
     'category': 'Sales',
-    'version': '0.2.2',
+    'version': '0.3.1',
 
     # any module necessary for this one to work correctly
     'depends': [
@@ -61,3 +61,28 @@
 
 # Version 0.2.2
 # *** Actualizar nombre cliente venta configuracion
+
+# Version 0.2.3
+# *** Actualizacion de metodo deliver, corrige problemas de duplicados debido a que tenia conflicto 
+# al definir reglas de almacen que generan mas de 1 movimiento al confirmar la venta
+
+# Version 0.2.4
+# *** Estatus venta se deja como draft (default) debido a que genera conflictos con movimientos 
+# de productos configurados como Kits y Reglas de Inventario.
+
+# Version 0.2.5
+# *** Modifica metodo get_data_with_variations, valores id, default_code se dejan de tomar de la 
+# variante ligada al producto
+
+# Version 0.2.6
+# *** Actualiza las vistas y agrega descripcion a modelos para evitar warnings en la instalacion debido 
+# a problemas de deprecacion
+
+# Version 0.2.7
+# *** Actualiza campos misma descripcion Marketplace Fee
+
+# Version 0.3.0
+# *** Mapeo de campos custom Odoo - Yuju
+
+# Version 0.3.1
+# *** Agrega validacion para buscar rfc cliente antes de crearlo.

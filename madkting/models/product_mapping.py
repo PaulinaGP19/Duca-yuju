@@ -16,6 +16,7 @@ import math
 
 class YujuMapping(models.Model):
     _name = 'yuju.mapping'
+    _description = 'Mapeo de Tiendas Yuju'
 
     company_id = fields.Many2one('res.company', 'Company')
     id_shop_yuju = fields.Char('Id Shop Yuju', size=50)
@@ -64,6 +65,7 @@ class YujuMapping(models.Model):
        
 class ProductYujuMapping(models.Model):
     _name = "yuju.mapping.product"
+    _description = 'Mapeo de Productos Yuju'
 
     product_id = fields.Many2one('product.product', string='Product', ondelete='cascade')
     id_product_yuju = fields.Char('Id Product Yuju', size=50)
@@ -98,15 +100,11 @@ class ProductYujuMapping(models.Model):
 
     def get_product_mapping(self, product_id, id_shop):
         logger.debug("#### GET MAPPING ###")
-        # logger.debug(product_id)
-        # logger.debug(type(product_id))
-        # logger.debug(id_shop)
-        # logger.debug(type(id_shop))
         mapping_ids = []
         count_mapping = self.search_count([('product_id', '=', int(product_id)), ('id_shop_yuju', '=', id_shop)])
         if count_mapping > 0:
             mapping_ids = self.search([('product_id', '=', int(product_id)), ('id_shop_yuju', '=', id_shop)], limit=1)
-        logger.info(mapping_ids)
+        logger.debug(mapping_ids)
         return mapping_ids
 
     def get_product_mapping_by_company(self, product_id, company_id):
@@ -126,7 +124,7 @@ class ProductYujuMapping(models.Model):
         count_mapping = self.search_count([('product_id', '=', int(product_id)), ('id_shop_yuju', '=', id_shop)])
         if count_mapping > 0:
             mapping_ids = self.search([('product_id', '=', int(product_id)), ('id_shop_yuju', '=', id_shop)], limit=1)
-        logger.info(mapping_ids)
+        logger.debug(mapping_ids)
         return mapping_ids
 
     # def get_product_mapping_by_sku(self, sku):
@@ -141,3 +139,90 @@ class ProductYujuMapping(models.Model):
         if product_mapping.ids:
             return product_mapping
         return []
+
+
+class YujuMappingModel(models.Model):
+    _name = "yuju.mapping.model"
+
+    name = fields.Char('Modelo Mapeo')
+    code = fields.Char('Codigo')
+
+class YujuMappingField(models.Model):
+    _name = "yuju.mapping.field"
+
+    name = fields.Char('Yuju Field')
+    field = fields.Char('Odoo Field')
+    default_value = fields.Char('Odoo Field Default Value')
+    fieldtype = fields.Selection([('integer', 'Numerico'), ('char', 'Cadena'), ('relation', 'Relacional')], 'Odoo Field Type')
+    model = fields.Many2one('yuju.mapping.model', 'Modelo Mapeo')
+    field_values = fields.One2many('yuju.mapping.field.value', 'field_id', 'Valores campos')
+
+    @api.model
+    def update_mapping_fields(self, record_data, modelo):
+        fvalues = self.env['yuju.mapping.field.value']
+        mapping_model = self.env['yuju.mapping.model'].search([('code', '=', modelo)], limit=1)
+        if mapping_model:
+            logger.debug("## Mapping model found")
+            mapping_field_ids = self.search([('model', '=', mapping_model.id)])
+            logger.debug("## Mapping field ids")
+            for row in mapping_field_ids:
+                yuju_field = row.name
+                odoo_field = row.field
+                logger.debug(yuju_field)
+                if yuju_field in record_data:
+                    yuju_value = record_data.pop(yuju_field)
+                    mapping_value_id = fvalues.search([('field_id', '=', row.id), ('name', '=', yuju_value)], limit=1)
+                    if mapping_value_id:
+                        mapping_value = mapping_value_id.value
+                    else:
+                        mapping_value = row.default_value                        
+
+                    if row.fieldtype in ['integer', 'relation']:
+                        mapping_value = int(mapping_value)
+                    
+                    record_data.update({odoo_field : mapping_value})
+
+        return record_data
+
+class YujuMappingFieldValue(models.Model):
+    _name = "yuju.mapping.field.value"
+
+    name = fields.Char('Yuju Value')
+    value = fields.Char('Odoo Value')
+    field_id = fields.Many2one('yuju.mapping.field', 'Odoo Field')
+
+class YujuMappingCustom(models.Model):
+    _name = "yuju.mapping.custom"
+    _description = 'Yuju Mapping Custom Orders'
+
+    name = fields.Char('Campo')
+    value = fields.Char('Valor por defecto')
+    custom_values = fields.One2many('yuju.mapping.custom.value', 'custom_id', 'Valores custom')
+
+    @api.model
+    def update_custom_values(self, fulfillment, channel_id):        
+        custom_data = {}
+        mapping_custom = self.search([])
+        if mapping_custom.ids:
+            logger.debug("## Custom 1")
+            for el in mapping_custom:
+                custom_field = el.name
+                custom_default = el.value
+                rule_found = False
+                for custom_v in el.custom_values:
+                    if custom_v.channel_id == str(channel_id) and custom_v.ff_type == str(fulfillment):
+                        custom_data.update({custom_field : custom_v.name})
+                        rule_found = True
+                        break
+                if not rule_found:
+                    custom_data.update({custom_field : custom_default})
+        return custom_data
+    
+class YujuMappingCustomValue(models.Model):
+    _name = "yuju.mapping.custom.value"
+    _description = 'Yuju Mapping Custom Values'
+
+    name = fields.Char('Valor Custom')
+    channel_id = fields.Char('Channel Id')
+    ff_type = fields.Char('FF Type')
+    custom_id = fields.Many2one('yuju.mapping.custom', 'Campo custom')

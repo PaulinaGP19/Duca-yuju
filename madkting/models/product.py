@@ -103,12 +103,12 @@ class ProductProduct(models.Model):
 
     @api.model
     def _create_supplier_product(self, supplier_data):  
-        logger.info("## CREATE SUPPLIER PRODUCT ##")      
+        logger.debug("## CREATE SUPPLIER PRODUCT ##")      
         try:
             supplier_id = self.env['res.partner'].search(['|', ('email', '=', supplier_data.get('email')), ('vat', '=', supplier_data.get('rfc'))], limit=1)
-            logger.info(supplier_id)
+            logger.debug(supplier_id)
             if not supplier_id.id:
-                logger.info("## Supplier not exists ##")
+                logger.debug("## Supplier not exists ##")
                 supplier_id = self.env['res.partner'].create({
                     "name" : supplier_data.get('name'),
                     "phone" : supplier_data.get('contact'),
@@ -120,10 +120,10 @@ class ProductProduct(models.Model):
             logger.exception(e)
             pass
         else:
-            logger.info("## ELSE ##")
+            logger.debug("## ELSE ##")
             try:
-                logger.info(self)
-                logger.info(self.seller_ids)
+                logger.debug(self)
+                logger.debug(self.seller_ids)
                 if not self.seller_ids:
                     self.write({
                         "seller_ids" : [(0, 0, {
@@ -146,9 +146,9 @@ class ProductProduct(models.Model):
         :return:
         :rtype: dict
         """
-        # logger.info("### UPDATE PRODUCT ###")
-        # logger.info(product_data)
-        # logger.info(id_shop)
+        # logger.debug("### UPDATE PRODUCT ###")
+        # logger.debug(product_data)
+        # logger.debug(id_shop)
         product_id = product_data.pop('id', None)
         if not product_id:
             return results.error_result('missing_product_id',
@@ -229,7 +229,7 @@ class ProductProduct(models.Model):
                 product_data.pop('description_pickingout')
                 product_data.pop('description_pickingin')
             except Exception as e:
-                logger.info(e)
+                logger.debug(e)
                 pass
         # Se quita el default code de la actualizacion, agreado en multi shop, este campo no es editable desde yuju 
         # ya que una vez asignado no puede modificarse
@@ -252,14 +252,29 @@ class ProductProduct(models.Model):
         # logger.debug("#### DATA TO WRITE ####")
         # logger.debug(fields_validation['data'])
 
-        if "barcode" in fields_validation["data"] and fields_validation["data"]["barcode"] == "":
-            # Drop empty barcode because constraint product_product_barcode_uniq
-            fields_validation["data"].pop("barcode")
+        if "barcode" in fields_validation["data"]: 
+            if fields_validation["data"]["barcode"] == "":
+                # Drop empty barcode because constraint product_product_barcode_uniq
+                fields_validation["data"].pop("barcode")
+            else:
+                logger.debug("## SEARCH BARCODE UPDATE ##")
+                barcode = fields_validation["data"]["barcode"]
+                product_ids = self.sudo().search([('barcode', '=', barcode)], limit=1)
+                logger.debug(product_ids.ids)
+                if product_ids.ids:
+                    return results.error_result(code='duplicated_barcode',
+                                                description='El codigo de barras ya esta previamente registrado')
+                else:
+                    product_ids = self.sudo().search([('barcode', '=', barcode), ('active', '=', False)], limit=1)
+                    logger.debug(product_ids.ids)
+                    if product_ids.ids:
+                        return results.error_result(code='duplicated_barcode',
+                                                description='El codigo de barras ya esta previamente registrado')
 
         try:
             product.write(fields_validation['data'])
             if config and config.update_parent_list_price and fields_validation['data'].get('list_price'):
-                logger.info("## UPDATE PARENT PRICE {}##".format(product.product_tmpl_id))
+                logger.debug("## UPDATE PARENT PRICE {}##".format(product.product_tmpl_id))
                 product_list_price = fields_validation['data'].get('list_price')
                 product.product_tmpl_id.write({"list_price" : product_list_price})
 
@@ -290,8 +305,8 @@ class ProductProduct(models.Model):
         :return:
         :rtype: dict
         """
-        logger.info("### CREATE VARIATION ###")
-        logger.info(variation_data)
+        logger.debug("### CREATE VARIATION ###")
+        logger.debug(variation_data)
         parent_id = variation_data.pop('product_id', None)
         if not parent_id:
             return results.error_result('missing_product_id',
@@ -315,17 +330,16 @@ class ProductProduct(models.Model):
             if product_ids.ids:
                 return results.error_result(code='duplicated_barcode',
                                             description='El codigo de barras ya esta previamente registrado')
+            else:
+                product_ids = self.search([('barcode', '=', variation_data.get('barcode', '')), ('active', '=', False)], limit=1)
+                if product_ids.ids:
+                    return results.error_result(code='duplicated_barcode',
+                                            description='El codigo de barras ya esta previamente registrado')
 
         attributes_structure = parent.attribute_lines_structure()
         variant_attributes = fields_validation['data'].pop('attributes')
         invalid_attributes = list()
         attribute_values = set()
-
-        logger.info("### attribute structure ###")
-        logger.info(attributes_structure)
-
-        logger.info("### variant_attributes ###")
-        logger.info(variant_attributes)
 
         if 'image' in fields_validation['data']:
             fields_validation['data']['image_1920'] = fields_validation['data'].pop('image', None)
@@ -344,19 +358,9 @@ class ProductProduct(models.Model):
         current_variations_set = parent.get_variation_sets()
         v_data = fields_validation['data']
 
-        logger.info("### attribute values ###")
-        logger.info(attribute_values)
-
-        logger.info("### current variation set ###")
-        logger.info(current_variations_set)
-
-        logger.info("### validation data ###")
-        logger.info(v_data)
-
         mapping = self.env['yuju.mapping.product']
 
         if attribute_values in current_variations_set:
-            logger.info("### Step 1 ###")
             for variation in parent.product_variant_ids:
                 if variant_attributes == variation.get_data().get('attributes'):                    
                     if id_shop:
@@ -382,12 +386,10 @@ class ProductProduct(models.Model):
 
         new_variation_values_ids = list()
         new_attribute_lines = []
-
-        logger.info("### Step 2 ###")
         for attribute, value in variant_attributes.items():
             # logger.in0fo(attributes_structure)
             value_id = attributes_structure[attribute].get('values').get(value)
-            # logger.info(value_id)
+            # logger.debug(value_id)
             # if this value_id is not already assigned to this attribute line
             if not value_id:
                 # try to get value from the existing attribute
@@ -424,7 +426,7 @@ class ProductProduct(models.Model):
         attribute_line_ids = [
                 (1, a['attribute_line_id'], {'value_ids': [(4, a['value_id'])]}) for a in new_attribute_lines
         ]
-        # logger.info(attribute_line_ids)
+        # logger.debug(attribute_line_ids)
         try:
             parent.product_tmpl_id.write({'attribute_line_ids': attribute_line_ids})
         except Exception as ex:
@@ -434,10 +436,9 @@ class ProductProduct(models.Model):
         new_variation_data = None
         v_data = fields_validation['data']
 
-        logger.info("### Step 3 ###")
         for variation in parent.product_variant_ids:
             if variant_attributes == variation.get_data().get('attributes'):
-                # logger.info(fields_validation['data'])
+                # logger.debug(fields_validation['data'])
                 if id_shop:
                     id_product_madkting = v_data.get('id_product_madkting')
                     default_code = v_data.get('default_code')
@@ -597,8 +598,8 @@ class ProductProduct(models.Model):
         data['variations'] = list()
         variation_attributes = defaultdict(list)
         data['template_id'] = self.product_tmpl_id.id
-        data['id'] = self.product_variant_id.id
-        data['default_code'] = self.product_variant_id.default_code
+        data['id'] = self.id
+        data['default_code'] = self.default_code
         data['product_variant_count'] = self.product_tmpl_id.product_variant_count
         for variation in self.product_variant_ids:
             variation_data = variation.get_data()

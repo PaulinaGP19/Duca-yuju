@@ -32,6 +32,9 @@ class MadktingConfig(models.Model):
     dropship_default_route_id = fields.Many2one('stock.location.route', string='Ruta Default para Dropshiping')
     dropship_route_id = fields.Many2one('stock.location.route', string='Ruta para Dropshiping')
     dropship_mto_route_id = fields.Many2one('stock.location.route', string='Ruta para MTO')
+    dropship_picking_type = fields.Many2one('stock.picking.type', string='Dropship Picking Type')
+
+    validate_partner_exists = fields.Boolean('Buscar Partner', help="Valida si existe el partner en odoo antes de crearlo")
     
     @api.model
     def create_config(self, configs):

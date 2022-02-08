@@ -19,6 +19,7 @@ class SaleOrder(models.Model):
     yuju_shop_id = fields.Integer('Yuju Shop Id')
     yuju_pack_id = fields.Char('Yuju Pack Id')
     yuju_marketplace_fee = fields.Float("Marketplace Fee")
+    yuju_seller_shipping_cost = fields.Float("Seller Shipping Cost")
     fulfillment = fields.Selection([
         ('fbf', 'Flex'),
         ('fbm', 'Seller'),
@@ -26,11 +27,17 @@ class SaleOrder(models.Model):
         ], string="Fulfillment")
     channel_order_reference = fields.Char('Marketplace Reference')
     channel_order_id = fields.Char('Marketplace Id')
-    channel_order_market_fee = fields.Float('Marketplace Fee')
+    channel_order_market_fee = fields.Float('Channel Marketplace Fee')
     channel_order_shipping_cost = fields.Float('Seller Shipping Cost')
     order_progress = fields.Char('Order Progress')
     payment_status = fields.Char('Payment Status')
     payment_id = fields.Integer('Pago Id')
+
+    def _update_custom_values(self, fulfillment, channel_id):
+        logger.debug("## CUSTOM VALUES FOR ORDERS ##")
+        customs = self.env['yuju.mapping.custom'].update_custom_values(fulfillment, channel_id)
+        logger.debug(customs)
+        return customs
 
     @api.model
     def mdk_create(self, order_data, **kwargs):
@@ -125,6 +132,7 @@ class SaleOrder(models.Model):
         else:
             order_data['pricelist_id'] = 1
 
+        order_data['state'] = 'draft'
         order_data['picking_policy'] = picking_policy
 
         if not order_data.get('date_order'):
@@ -177,8 +185,17 @@ class SaleOrder(models.Model):
                 logger.debug(data)
                 return results.success_result(data)
 
-        if config.orders_unconfirmed:
-            order_data.update({'state' : 'draft'})
+        # if config.orders_unconfirmed:
+        #     order_data.update({'state' : 'draft'})
+
+        if order_data.get('fulfillment') and order_data.get('channel_id'):
+            fulfillment = order_data.get('fulfillment')
+            channel_id = order_data.get('channel_id')
+            custom_data = self._update_custom_values(fulfillment, channel_id)
+            if custom_data:
+                logger.debug("## ORDER DATA CUSTOM ###")
+                order_data.update(custom_data)
+                logger.debug(order_data)
 
         try:
             new_sale = self.create(order_data)
@@ -196,7 +213,8 @@ class SaleOrder(models.Model):
 
                     if new_sale.channel_id in channel_ids:
                         partner = new_sale.partner_id
-                        partner.write({"name" : "{}, {}".format(partner.name, new_sale.name)})
+                        if partner.name.find(new_sale.name) < 0:
+                            partner.write({"name" : "{}, {}".format(partner.name, new_sale.name)})
 
         except exceptions.AccessError as err:
             logger.exception(err)
@@ -216,12 +234,14 @@ class SaleOrder(models.Model):
             for line in lines:
                 product_tax_rate = line.pop('tax_rate', False)
                 line['order_id'] = new_sale.id
+                line['state'] = 'draft'
+                
+                product = self.env['product.product'].search([('id', '=', int(line.get('product_id')))], limit=1)
 
                 if config.dropship_enabled and new_sale.warehouse_id.dropship_enabled:
                     route = config.dropship_default_route_id
                     logger.debug("## AGREGAR RUTA DROPSHIP ###")
                     logger.debug("## RUTA: {} ###".format(route.name))
-                    product = self.env['product.product'].search([('id', '=', int(line.get('product_id')))], limit=1)
                     if product.id and product.type == 'product':
                         logger.debug("## ID RUTA: {}".format(route.id))
                         location_stock = new_sale.warehouse_id.lot_stock_id
@@ -235,8 +255,12 @@ class SaleOrder(models.Model):
                                 route = config.dropship_mto_route_id
                             line.update({"route_id" : route.id})
 
-                if config.orders_unconfirmed:
-                    line.update({'state' : 'draft'})
+                # if config.orders_unconfirmed:
+                #     line.update({'state' : 'draft'})
+
+                line_product_uom_id = int(line.get('product_uom'))
+                if product.uom_id.id != line_product_uom_id:
+                    line['product_uom'] = product.uom_id.id
 
                 try:
                     logger.debug(line)
@@ -390,6 +414,8 @@ class SaleOrder(models.Model):
         :return:
         """
         logger.debug("### DELIVER ORDER ###")
+        logger.debug(order_id)
+        logger.debug(order)
         logger.debug(kwargs)
         config = self.env['madkting.config'].get_config()
 
@@ -404,198 +430,115 @@ class SaleOrder(models.Model):
             return results.error_result(code='sale_not_exists',
                                         description='order {} doesn\'t exists'.format(order_id))
 
-        if order.state not in ['sale']:
+        if order.state not in ['sale', 'done']:
             return results.error_result(code='order_unconfirmed',
                                         description='You must confirm the order_id to deliver')
+
+        if not order.picking_ids:
+            return results.error_result(code='no_picking_found',
+                                        description='picking doesn\'t exists')
 
         if not kwargs.get('state'):
             return results.error_result(code='missing_state_argument',
                                         description='delivery state is mandatory')
 
         order.ensure_one()
+        current_delivery = False
+        outgoing_picking = False
 
-        # if the order already has a pending delivery
-        if len(order.picking_ids) == 1:
-            logger.debug(" ### STOCK PICKING CREATE ### ")
-            current_delivery = order.picking_ids.sudo()
-            current_id = current_delivery.id
-            current_name = current_delivery.name
-            state = kwargs.get('state')
-            if current_delivery.state == 'done' or \
-               current_delivery.state == state:
-                current_data = current_delivery.copy_data()[0]
-                current_data['id'] = current_id
-                current_data['name'] = current_name
-                current_data['state'] = current_delivery.state
-                return results.success_result(data=current_data)
+        if config.dropship_enabled and config.dropship_picking_type:
 
-            if state == 'done' and current_delivery.picking_type_id.code == 'outgoing':
-                
-                if current_delivery.state == 'confirmed':
-                    logger.debug('confirmed')
+            for picking in order.picking_ids:
+                picking_type = picking.picking_type_id
+                if picking_type.id == config.dropship_picking_type.id:
+                    logger.debug("## DROPSHIP OPERATION ##")
+                    current_delivery = picking
+                    current_id = current_delivery.id
+                    current_name = current_delivery.name
+                    current_data = current_delivery.copy_data()[0]
+
+                    current_data['id'] = current_id
+                    current_data['name'] = current_name
+                    current_data['state'] = current_delivery.state
+                    return results.success_result(data=current_data)
+
+        for picking in order.picking_ids:
+            picking_type = picking.picking_type_id
+            logger.debug("## PICKING TYPE ##")
+            logger.debug(picking_type.code)
+
+            if picking_type.code != 'outgoing':
+                logger.debug("## Next picking ##")
+                continue            
+
+            outgoing_picking = True
+            current_delivery = picking
+
+            if current_delivery.state == "waiting":
+                 logger.debug("Algunos picking estan esperando otra operacion, no se pueden confirmar.")
+                 return results.error_result(code='picking_pending_state',
+                                         description='Some pickings are on pending state can\'t confirm')
+
+            if current_delivery.state == 'confirmed':
+                logger.debug('confirmed')
+                try:
                     current_delivery.action_assign()
+                except Exception as e:
+                    post_message = "Error trying to assign delivery {}.".format(e)
+                    logger.debug(post_message)
+                    current_delivery.message_post(body=post_message)
+                    return results.error_result(code='no_picking_assigned',
+                                        description='cannot assign order picking')
+                else:
+                    if current_delivery.state == "assigned":
+                        post_message = 'Delivery Assigned.'
+                    else:
+                        post_message = 'Cannot assign reserved quantity, please verify stock.'
+                    current_delivery.message_post(body=post_message)
 
-                if current_delivery.state == 'assigned':
-                    logger.debug('assigned')
+            if current_delivery.state == 'assigned':
+                logger.debug('assigned')
+                try:
                     for line in current_delivery.move_lines.sudo():
                         line.sudo().write({
                             'quantity_done': line.product_uom_qty
                         })
                     current_delivery.button_validate()
+                except Exception as e:
+                    post_message = "Error trying to complete delivery {}.".format(e)
+                    logger.debug(post_message)
+                    current_delivery.message_post(body=post_message)
+                    return results.error_result(code='no_picking_done',
+                                        description='cannot complete order picking')
+                else:
+                    if current_delivery.state == "done":
+                        post_message = 'Delivery Done.'
+                    else:
+                        post_message = 'Cannot complete delivery, please retry.'
+                    current_delivery.message_post(body=post_message)
 
-            current_data = current_delivery.copy_data()[0]
-            current_data['id'] = current_id
-            current_data['name'] = current_name
-            current_data['state'] = current_delivery.state
-            return results.success_result(data=current_data)
-
-        logger.debug("### CREATE STOCK PICKING MANUAL ###")
-
-        warehouse_id = order.warehouse_id.id
-        location_stock = order.warehouse_id.lot_stock_id  
-
-        # get origin of products from params or from default query
-        def _get_sale_prods_origin():
-            products_origin = kwargs.get('default_sale_products_origin')
-            if not products_origin:
-                products_origin = location_stock.id
-            return products_origin
-
-        # get destiny of products from params or from default query
-        def _get_sale_prods_destiny():
-            products_destiny = kwargs.get('default_sale_products_destiny')
-            if not products_destiny:
-                location = self.env['stock.location'] \
-                               .sudo() \
-                               .search([('company_id', '=', None),
-                                        ('active', '=', True),
-                                        ('name', '=', 'Customers')
-                                        ])           
-                if len(location) == 1:
-                    products_destiny = location.id
-            return products_destiny
-
-        # get picking type id from params or from default query
-        def _get_picking_type():
-            picking_type_id = kwargs.get('picking_type_id')
-            if not picking_type_id:
-                picking_type = self.env['stock.picking.type'].sudo().search([
-                                            ('sequence_code', '=', 'OUT'),
-                                            ('warehouse_id', '=', warehouse_id),
-                                            ('active', '=', True)
-                                            ])
-                if len(picking_type.ids) == 1:
-                    picking_type_id = picking_type.id
-            return picking_type_id
-
-        if config and config.dropship_enabled:            
-            route_ids = []
-            if config.dropship_default_route_id:
-                route_ids.append(config.dropship_default_route_id.id)
-            if config.dropship_route_id:
-                route_ids.append(config.dropship_route_id.id)
-            if config.dropship_mto_route_id:
-                route_ids.append(config.dropship_mto_route_id.id)
-
-            if route_ids:
-                create_delivery = False
-                for order_line in order.order_line:
-                    if not order_line.route_id or (order_line.route_id and order_line.route_id.id not in route_ids):
-                        create_delivery = True
-                        break
-                if not create_delivery:
-                    return results.success_result(data={})
-
-        stock_picking = {
-            'sale_id': order.id,
-            'origin': order.name,
-            'note': 'Delivery for order from madkting',
-            'move_type': order.picking_policy,
-            'date': datetime.now().strftime('%Y-%m-%d'),
-            'location_id': _get_sale_prods_origin(),
-            'location_dest_id': _get_sale_prods_destiny(),
-            'picking_type_id': _get_picking_type(),
-            'partner_id': order.partner_id.id,
-            'owner_id': False,
-            'printed': False,
-            'is_locked': True,
-            'immediate_transfer': False,
-            'message_main_attachment_id': False,
-            'move_lines': list(),
-            'state': kwargs.get('state')
-        }
-
-        for order_line in order.order_line:   
-
-            product_uom_qty = order_line.product_uom_qty
-
-            if config and config.dropship_enabled:
-                route_ids = []
-                if config.dropship_default_route_id:
-                    route_ids.append(config.dropship_default_route_id.id)
-                if config.dropship_route_id:
-                    route_ids.append(config.dropship_route_id.id)
-                if config.dropship_mto_route_id:
-                    route_ids.append(config.dropship_mto_route_id.id)
-               
-                if route_ids and order_line.route_id and order_line.route_id.id in route_ids:
-                    continue
-
-            stock_picking['move_lines'].append((0, 0, {
-                    'state': kwargs.get('state'),
-                    'name': order_line.name,
-                    'sequence': 10,
-                    'priority': '1',
-                    'date': datetime.now().strftime('%Y-%m-%d'),
-                    'company_id': order_line.company_id.id,
-                    'date_expected': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                    'product_id': order_line.product_id.id,
-                    'product_uom_qty': product_uom_qty,
-                    'product_uom': order_line.product_uom.id,
-                    # 'product_packaging': False,
-                    'location_id': _get_sale_prods_origin(),
-                    'location_dest_id': _get_sale_prods_destiny(),
-                    'partner_id': order.partner_id.id,
-                    'note': 'Delivery for order from madkting',
-                    'origin': order.name,
-                    'procure_method': 'make_to_stock',
-                    # 'propagate': True,
-                    'picking_type_id': _get_picking_type(),
-                    'inventory_id': False,
-                    'restrict_partner_id': False,
-                    'warehouse_id': order.warehouse_id.id,
-                    'sale_line_id': order_line.id,
-                    'quantity_done': product_uom_qty
-                    # 'product_qty': 1,
-                }
-            ))
-        
-        try:
-            logger.debug(stock_picking)
-            new_deliver = self.env['stock.picking'].create(stock_picking)
-        except exceptions.AccessError as err:
-            return results.error_result(
-                code='access_error',
-                description=str(err)
-            )
-        except Exception as ex:
-            logger.exception(ex)
-            return results.error_result(
-                code='delivery_create_error',
-                description='Sale delivery cannot be created because of the '
-                            'following exception: {}'.format(ex)
-            )
-        else:
-            if not new_deliver.sale_id.id:
-                new_deliver.sale_id = order_id
+            if current_delivery.state == "done":
+                logger.debug("## PICKING DONE ##")
+                break
             
-            if new_deliver.state == 'done':
-                new_deliver.action_done()
-            deliver_data = new_deliver.copy_data()
-            deliver_data['id'] = new_deliver.id
-            deliver_data['name'] = new_deliver.name
-            deliver_data['state'] = new_deliver.state
-            return results.success_result(data=deliver_data)
+        if not outgoing_picking:
+            logger.debug("No se encontro ningun picking de tipo salida de almacen")
+            return results.error_result(code='no_picking_found',
+                                        description='picking doesn\'t exists')
+
+        if current_delivery.state != 'done':
+            logger.debug("No se pudo finalizar la entrega, es necesario reintentar")
+            return results.error_result(code='picking_needs_retry',
+                                        description='picking needs retry to complete')
+
+        current_id = current_delivery.id
+        current_name = current_delivery.name
+        current_data = current_delivery.copy_data()[0]
+
+        current_data['id'] = current_id
+        current_data['name'] = current_name
+        current_data['state'] = current_delivery.state
+        return results.success_result(data=current_data)
 
     @api.model
     def supplier_invoice_order(self, order_id, partner_id, shipping_id, fee_id):
@@ -862,6 +805,7 @@ class SaleOrder(models.Model):
                                                 'payment_type': 'inbound',
                                                 'payment_method_id': payment_method_id,
                                                 'journal_id': journal_id,
+                                                'currency_id': sale.pricelist_id and sale.pricelist_id.currency_id.id,
                                                 'partner_type': 'customer'})                
             else:
                 payment = payment_model.create({'amount': invoice.amount_total,
@@ -871,6 +815,7 @@ class SaleOrder(models.Model):
                                                 'payment_type': 'inbound',
                                                 'payment_method_id': payment_method_id,
                                                 'journal_id': journal_id,
+                                                'currency_id': invoice.currency_id.id,
                                                 'partner_type': 'customer'})
                 payment.invoice_ids = [invoice_id]
         
