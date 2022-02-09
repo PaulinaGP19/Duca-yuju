@@ -548,12 +548,12 @@
                     <field name="color"/>
                     <field name="kanban_badge_color"/>
                     <field name="image"/>
-                    <field name="mk_listing_count"/>
+                    <!--<field name="mk_listing_count"/>
                     <field name="mk_order_count"/>
                     <field name="mk_invoice_count"/>
                     <field name="mk_shipment_count"/>
                     <field name="mk_queue_count"/>
-                    <field name="mk_customer_count"/>
+                    <field name="mk_customer_count"/>-->
                     <field name="is_sample_data"/>
 
                     <templates>
@@ -615,49 +615,55 @@
                                     <div class="row mt16">
                                         <div class="col-2 border-right">
                                             <a name="%(base_marketplace.action_marketplace_customer_kanban)d" type="action" class="d-flex flex-column align-items-center">
-                                                <span class="font-weight-bold">
+                                                <span class="fa fa-2x fa-users"/>
+                                                <!--<span class="font-weight-bold">
                                                     <t t-esc="record.mk_customer_count.value"/>
-                                                </span>
+                                                </span>-->
                                                 <span class="text-muted">Customers</span>
                                             </a>
                                         </div>
                                         <div class="col-2 border-right">
                                             <a name="%(base_marketplace.action_marketplace_listing_kanban)d" type="action" class="d-flex flex-column align-items-center">
-                                                <span class="font-weight-bold">
+                                                <span class="fa fa-2x fa-product-hunt"/>
+                                                <!--<span class="font-weight-bold">
                                                     <t t-esc="record.mk_listing_count.value"/>
-                                                </span>
+                                                </span>-->
                                                 <span class="text-muted">Listing</span>
                                             </a>
                                         </div>
                                         <div class="col-2 border-right">
                                             <a name="%(base_marketplace.action_marketplace_orders_kanban)d" type="action" class="d-flex flex-column align-items-center">
-                                                <span class="font-weight-bold">
+                                                <span class="fa fa-2x fa-usd"/>
+                                                <!--<span class="font-weight-bold">
                                                     <t t-esc="record.mk_order_count.value"/>
-                                                </span>
+                                                </span>-->
                                                 <span class="text-muted">Order</span>
                                             </a>
                                         </div>
                                         <div class="col-2 border-right">
                                             <a name="%(base_marketplace.action_marketplace_invoice_kanban)d" type="action" class="d-flex flex-column align-items-center">
-                                                <span class="font-weight-bold">
+                                                <span class="fa fa-2x fa-pencil-square-o"/>
+                                                <!--<span class="font-weight-bold">
                                                     <t t-esc="record.mk_invoice_count.value"/>
-                                                </span>
+                                                </span>-->
                                                 <span class="text-muted">Invoice</span>
                                             </a>
                                         </div>
                                         <div class="col-2 border-right">
                                             <a name="%(base_marketplace.action_marketplace_shipment_kanban)d" type="action" class="d-flex flex-column align-items-center">
-                                                <span class="font-weight-bold">
+                                                <span class="fa fa-2x fa-truck"/>
+                                                <!--<span class="font-weight-bold">
                                                     <t t-esc="record.mk_shipment_count.value"/>
-                                                </span>
+                                                </span>-->
                                                 <span class="text-muted">Shipment</span>
                                             </a>
                                         </div>
                                         <div class="col-2">
                                             <a name="%(base_marketplace.action_marketplace_queue_job_kanban)d" type="action" class="d-flex flex-column align-items-center">
-                                                <span class="font-weight-bold">
+                                                <span class="fa fa-2x fa-tasks"/>
+                                                <!--<span class="font-weight-bold">
                                                     <t t-esc="record.mk_queue_count.value"/>
-                                                </span>
+                                                </span>-->
                                                 <span class="text-muted">Queue</span>
                                             </a>
                                         </div>
