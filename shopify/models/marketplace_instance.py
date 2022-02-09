@@ -39,6 +39,8 @@ class MkInstance(models.Model):
     password = fields.Char("Password", copy=False)
     shared_secret = fields.Char("Shared Secret", copy=False)
     shop_url = fields.Char("Shop URL", copy=False, help="Exp. https://teqstars.myshopify.com")
+    is_token = fields.Boolean("I have API Access Token", default=False, help="You can find Admin API Access token from Shopify Apps.", copy=False)
+    api_token = fields.Char("API access token", copy=False)
 
     # Sale Orders Fields
     close_order_after_fulfillment = fields.Boolean("Close Order after Fulfillment?", help="If true then at the time of Update Order Status closing Shopify Order.")
@@ -66,7 +68,7 @@ class MkInstance(models.Model):
     shopify_collection_count = fields.Integer("Collection Count", compute='_get_mk_kanban_counts')
     shopify_location_ids = fields.One2many('shopify.location.ts', 'mk_instance_id', string="Locations")
     shopify_location_count = fields.Integer("Location Count", compute='_get_mk_kanban_counts')
-    
+
     # Customer Fields.
     is_create_company_contact = fields.Boolean("Create Company Contact?", default=False, help="It will create company contact if found company while creating Customer.")
 
@@ -127,10 +129,14 @@ class MkInstance(models.Model):
         return get_module_resource('shopify', 'static/description', 'shopify_logo.png')
 
     def connection_to_shopify(self):
-        parsed_url = urlparse(self.shop_url)
-        shop_url = "{scheme}://{api_key}:{password}@{shop_url}/admin/api/2022-01".format(api_key=self.api_key, password=self.password, scheme=parsed_url.scheme,
-                                                                                         shop_url=parsed_url.netloc)
-        shopify.ShopifyResource.set_site(shop_url)
+        if self.is_token:
+            session = shopify.Session(self.shop_url, '2022-01', self.api_token)
+            shopify.ShopifyResource.activate_session(session)
+        else:
+            parsed_url = urlparse(self.shop_url)
+            shop_url = "{scheme}://{api_key}:{password}@{shop_url}/admin/api/2022-01".format(api_key=self.api_key, password=self.password, scheme=parsed_url.scheme,
+                                                                                             shop_url=parsed_url.netloc)
+            shopify.ShopifyResource.set_site(shop_url)
         return True
 
     def shopify_action_confirm(self):

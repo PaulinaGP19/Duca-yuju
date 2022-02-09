@@ -106,10 +106,12 @@ class MkListing(models.Model):
             raise AccessError(e)
 
     def get_product_category(self, shopify_product_type):
-        category_obj = self.env['product.category']
-        product_category_id = category_obj.search([('name', '=', shopify_product_type)], limit=1)
-        if not product_category_id:
-            product_category_id = category_obj.create({'name': shopify_product_type})
+        product_category_id = False
+        if shopify_product_type:
+            category_obj = self.env['product.category']
+            product_category_id = category_obj.search([('name', '=', shopify_product_type)], limit=1)
+            if not product_category_id:
+                product_category_id = category_obj.create({'name': shopify_product_type})
         return product_category_id
 
     def prepare_attribute_line_vals(self, shopify_product_dict):
@@ -148,7 +150,7 @@ class MkListing(models.Model):
             'attribute_line_ids': attribute_line_vals,
             'description_sale': shopify_product_dict.get("description", "")
         }
-        if mk_instance_id.is_update_odoo_product_category:
+        if mk_instance_id.is_update_odoo_product_category and product_category_id:
             product_template_vals.update({'categ_id': product_category_id.id})
 
         product_tmpl_id = odoo_template_obj.create(product_template_vals)
@@ -221,9 +223,13 @@ class MkListing(models.Model):
         if variant_inventory_policy == 'continue':
             vals.update({'continue_selling': True})
 
+        if product_category_id:
+            vals.update({'product_category_id': product_category_id.id})
+        else:
+            vals.update({'product_category_id': odoo_product_id and odoo_product_id.categ_id and odoo_product_id.categ_id.id})
+
         vals.update(
             {'name': shopify_product_title,
-             'product_category_id': product_category_id.id,
              'mk_instance_id': mk_instance_id.id,
              'product_tmpl_id': odoo_product_id.product_tmpl_id.id,
              'mk_id': mk_id,
