@@ -97,3 +97,7 @@
 2.1
 
 - Updated Shopify Python SDK Version.
+
+2.2
+
+- Added Access token in Shopify instance configuration.
