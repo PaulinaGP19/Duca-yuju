@@ -9,7 +9,35 @@
                 <page name="configuration" position="before">
                     <page name="credentials" string="Credentials" attrs="{'invisible':[('marketplace','!=','shopify')]}">
                         <div class="row mt16 o_settings_container">
-                            <div class="col-xs-12 col-md-6 o_setting_box">
+                            <div class="col-xs-12 col-md-6 o_setting_box" name="is_token">
+                                <div class="o_setting_left_pane">
+                                    <b>
+                                        <field name="is_token" attrs="{'readonly':[('state','=','confirmed')]}"/>
+                                    </b>
+                                </div>
+                                <div class="o_setting_right_pane">
+                                    <label string="I have API Access Token" for="is_token"/>
+                                    <div class="text-muted">
+                                        You can find Admin API Access token from Shopify Apps.
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-xs-12 col-md-6 o_setting_box" attrs="{'invisible':[('is_token','=',False)]}">
+                                <div class="o_setting_left_pane"/>
+                                <div class="o_setting_right_pane">
+                                    <label string="API Access Token" for="api_token"/>
+                                    <div class="text-muted">
+                                        API Access Token is used to request data from the Admin API.
+                                    </div>
+                                    <div class="text-muted">
+                                        <b>
+                                            <field name="api_token"
+                                                   attrs="{'required':[('marketplace','=','shopify'),('is_token','=',True)], 'readonly':[('state','=','confirmed')]}"/>
+                                        </b>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-xs-12 col-md-6 o_setting_box" attrs="{'invisible':[('is_token','=',True)]}">
                                 <div class="o_setting_left_pane"/>
                                 <div class="o_setting_right_pane">
                                     <label string="API Key" for="api_key"/>
@@ -18,12 +46,13 @@
                                     </div>
                                     <div class="text-muted">
                                         <b>
-                                            <field name="api_key" attrs="{'required':[('marketplace','=','shopify')], 'readonly':[('state','=','confirmed')]}"/>
+                                            <field name="api_key"
+                                                   attrs="{'required':[('marketplace','=','shopify'),('is_token','=',False)], 'readonly':[('state','=','confirmed')]}"/>
                                         </b>
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-xs-12 col-md-6 o_setting_box">
+                            <div class="col-xs-12 col-md-6 o_setting_box" attrs="{'invisible':[('is_token','=',True)]}">
                                 <div class="o_setting_left_pane"/>
                                 <div class="o_setting_right_pane">
                                     <label string="Password" for="password"/>
@@ -32,12 +61,12 @@
                                     </div>
                                     <div class="text-muted">
                                         <b>
-                                            <field name="password" attrs="{'required':[('marketplace','=','shopify')], 'readonly':[('state','=','confirmed')]}"/>
+                                            <field name="password" attrs="{'required':[('marketplace','=','shopify'),('is_token','=',False)], 'readonly':[('state','=','confirmed')]}"/>
                                         </b>
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-xs-12 col-md-6 o_setting_box">
+                            <div class="col-xs-12 col-md-6 o_setting_box" attrs="{'invisible':[('is_token','=',True)]}">
                                 <div class="o_setting_left_pane"/>
                                 <div class="o_setting_right_pane">
                                     <label string="Shared Secret" for="shared_secret"/>
@@ -46,7 +75,8 @@
                                     </div>
                                     <div class="text-muted">
                                         <b>
-                                            <field name="shared_secret" attrs="{'required':[('marketplace','=','shopify')], 'readonly':[('state','=','confirmed')]}"/>
+                                            <field name="shared_secret"
+                                                   attrs="{'required':[('marketplace','=','shopify'),('is_token','=',False)], 'readonly':[('state','=','confirmed')]}"/>
                                         </b>
                                     </div>
                                 </div>
