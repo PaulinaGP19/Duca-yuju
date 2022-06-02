@@ -28,7 +28,7 @@ class Partner(models.Model):
                 page_url = page_wise_customer_list.next_page_url
                 parsed = urlparse.parse_qs(page_url)
                 page_info = parsed.get('page_info', False) and parsed.get('page_info', False)[0] or False
-                shopify_customer_list = page_wise_customer_list + shopify_customer_list
+                shopify_customer_list += page_wise_customer_list
                 if not page_info:
                     break
             instance_id.last_customer_import_date = fields.Datetime.now()

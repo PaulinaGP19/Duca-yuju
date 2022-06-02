@@ -35,16 +35,12 @@ class MkInstance(models.Model):
         return 250
 
     marketplace = fields.Selection(selection_add=[('shopify', _("Shopify"))], string='Marketplace')
-    api_key = fields.Char("API Key", copy=False)
     password = fields.Char("Password", copy=False)
-    shared_secret = fields.Char("Shared Secret", copy=False)
     shop_url = fields.Char("Shop URL", copy=False, help="Exp. https://teqstars.myshopify.com")
     is_token = fields.Boolean("I have API Access Token", default=False, help="You can find Admin API Access token from Shopify Apps.", copy=False)
     api_token = fields.Char("API access token", copy=False)
 
     # Sale Orders Fields
-    close_order_after_fulfillment = fields.Boolean("Close Order after Fulfillment?", help="If true then at the time of Update Order Status closing Shopify Order.")
-
     fulfillment_status_ids = fields.Many2many('shopify.order.status', 'marketplace_order_status_rel', 'mk_instance_id', 'status_id', "Fulfillment Status",
                                               default=_get_default_fulfillment_status, help="Filter orders by their fulfillment status at the time of Import Orders.")
     financial_workflow_config_ids = fields.One2many("shopify.financial.workflow.config", "mk_instance_id", "Financial Workflow Configuration")
@@ -54,6 +50,10 @@ class MkInstance(models.Model):
                                               domain="['|', ('company_id', '=', False), ('company_id', '=', company_id), ('customer_rank','>', 0)]",
                                               help="If customer is not found in POS Orders then set this customer.")
     is_fetch_fraud_analysis_data = fields.Boolean("Fetch Fraud Analysis Data?", default=True, help="It will fetch detail of Fraud Analysis and show in the Order Form view.")
+    gift_card_product_id = fields.Many2one('product.product', string='Gift Card Product', domain=[('type', '=', 'service')],
+                                           help="Shopify gift card orders will be imported with this product (Only Service type product).")
+    tip_product_id = fields.Many2one('product.product', string='Tip Product', domain=[('type', '=', 'service')],
+                                     help="Shopify Tip order line will be imported with this product (Only Service type product).")
 
     # Email & Notification
     is_notify_customer = fields.Boolean("Nofity Customer?", default=False,
@@ -85,6 +85,8 @@ class MkInstance(models.Model):
                 vals.update({'shop_url': vals.get('shop_url')[:-1]})
         res = super(MkInstance, self).create(vals)
         if vals.get('marketplace', '') == 'shopify':
+            res.onchange_gift_card_product_id()
+            res.onchange_tip_product_id()
             # Create Webhook URL
             odoo_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url')
             instance_url = "{}/{}".format(self.env.cr.dbname, res.id)
@@ -107,9 +109,21 @@ class MkInstance(models.Model):
         for rec in self:
             if rec.marketplace == 'shopify':
                 rec.shopify_set_default_pos_customer()
+                rec.onchange_gift_card_product_id()
+                rec.onchange_tip_product_id()
                 if not urlparse(rec.shop_url).scheme:
                     raise ValidationError(_("URL must include http or https protocol!"))
         return res
+
+    @api.onchange('gift_card_product_id', 'marketplace')
+    def onchange_gift_card_product_id(self):
+        if not self.gift_card_product_id and self.marketplace == 'shopify':
+            self.gift_card_product_id = self.env.ref('shopify.shopify_gift_card_product', False) or False
+
+    @api.onchange('tip_product_id', 'marketplace')
+    def onchange_tip_product_id(self):
+        if not self.tip_product_id and self.marketplace == 'shopify':
+            self.tip_product_id = self.env.ref('shopify.shopify_tip_product', False) or False
 
     def shopify_set_default_pos_customer(self):
         if not self.default_pos_customer_id:
@@ -129,14 +143,8 @@ class MkInstance(models.Model):
         return get_module_resource('shopify', 'static/description', 'shopify_logo.png')
 
     def connection_to_shopify(self):
-        if self.is_token:
-            session = shopify.Session(self.shop_url, '2022-01', self.api_token)
-            shopify.ShopifyResource.activate_session(session)
-        else:
-            parsed_url = urlparse(self.shop_url)
-            shop_url = "{scheme}://{api_key}:{password}@{shop_url}/admin/api/2022-01".format(api_key=self.api_key, password=self.password, scheme=parsed_url.scheme,
-                                                                                             shop_url=parsed_url.netloc)
-            shopify.ShopifyResource.set_site(shop_url)
+        session = shopify.Session(self.shop_url, '2022-01', self.api_token if self.is_token else self.password)
+        shopify.ShopifyResource.activate_session(session)
         return True
 
     def shopify_action_confirm(self):
@@ -162,20 +170,20 @@ class MkInstance(models.Model):
         self.env['shopify.webhook.ts'].fetch_all_webhook_from_shopify(self)
         return True
 
-    def shopify_api_call(self, method='GET', url='', data=None, params=False, full_url=False):
-        if data is None:
-            data = {}
-        try:
-            shop_url = self.shop_url + url if self.shop_url.endswith('/') else self.shop_url + '/' + url
-            if full_url:
-                shop_url = full_url
-            if data:
-                data = json.dumps(data)
-            headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
-            response = requests.request(method, shop_url, auth=(self.api_key, self.password), headers=headers, data=data, params=params)
-        except Exception as e:
-            return e
-        return response
+    # def shopify_api_call(self, method='GET', url='', data=None, params=False, full_url=False):
+    #     if data is None:
+    #         data = {}
+    #     try:
+    #         shop_url = self.shop_url + url if self.shop_url.endswith('/') else self.shop_url + '/' + url
+    #         if full_url:
+    #             shop_url = full_url
+    #         if data:
+    #             data = json.dumps(data)
+    #         headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
+    #         response = requests.request(method, shop_url, auth=(self.api_key, self.password), headers=headers, data=data, params=params)
+    #     except Exception as e:
+    #         return e
+    #     return response
 
     def shopify_setup_schedule_actions(self, mk_instance_id):
         cron_obj = self.env['ir.cron']
@@ -189,6 +197,8 @@ class MkInstance(models.Model):
         cron_obj.create_marketplace_cron(mk_instance_id, cron_name, method_name='cron_auto_export_stock', model_name='mk.listing', interval_type='minutes', interval_number=30)
         cron_name = 'Marketplace[{}] : Auto Import Shopify Product\'s Stock'.format(mk_instance_id.name)
         cron_obj.create_marketplace_cron(mk_instance_id, cron_name, method_name='cron_auto_import_stock', model_name='mk.listing', interval_type='days', interval_number=1)
+        cron_name = 'Marketplace[{}] : Auto Update Shopify Product\'s Price'.format(mk_instance_id.name)
+        cron_obj.create_marketplace_cron(mk_instance_id, cron_name, method_name='cron_auto_update_product_price', model_name='mk.listing', interval_type='days', interval_number=1)
         # cron_name = 'Marketplace[{}] : Import Payout Reports'.format(mk_instance_id.name)
         # cron_obj.create_marketplace_cron(mk_instance_id, cron_name, method_name='shopify_import_payout_report', model_name='shopify.payout', interval_type='days',
         #                                  interval_number=1)

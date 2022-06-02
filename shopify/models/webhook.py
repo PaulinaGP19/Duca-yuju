@@ -51,14 +51,13 @@ class ShopifyWebhook(models.Model):
         mk_instance_id.connection_to_shopify()
         if not mk_instance_id.webhook_url.startswith('https://'):
             raise ValidationError("You can only create Webhook with secure URL (https).")
-        data_vals = {"webhook": {"topic": self.webhook_event, "address": mk_instance_id.webhook_url, "format": "json"}}
-        request_url = 'admin/api/2022-01/webhooks.json'
-        response = mk_instance_id.shopify_api_call('POST', request_url, data_vals)
-        if response.status_code not in [200, 201]:
-            raise AccessError(response.text)
-        response_dict = response.json()
-        webhook_id = response_dict.get('webhook', {}).get('id')
-        vals.update({'webhook_id': webhook_id})
+        webhook = shopify.Webhook()
+        data_vals = {"topic": self.webhook_event, "address": mk_instance_id.webhook_url, "format": "json"}
+        response = webhook.create(data_vals)
+        if response.id:
+            response_dict = response.to_dict()
+            webhook_id = response_dict.get('webhook', {}).get('id')
+            vals.update({'webhook_id': webhook_id})
         return vals
 
     @api.model

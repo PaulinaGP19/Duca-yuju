@@ -87,6 +87,20 @@
                                     </div>
                                 </div>
                             </div>
+                            <div class="col-xs-12 col-md-6 o_setting_box" name="last_listing_price_update_date">
+                                <div class="o_setting_left_pane"/>
+                                <div class="o_setting_right_pane">
+                                    <label string="Last Listing's Price Updated On" for="last_listing_price_update_date"/>
+                                    <div class="text-muted">
+                                        Date were listing's price are updated.
+                                    </div>
+                                    <div class="text-muted">
+                                        <b>
+                                            <field name="last_listing_price_update_date"/>
+                                        </b>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="col-xs-12 col-md-6 o_setting_box" name="last_stock_import_date">
                                 <div class="o_setting_left_pane"/>
                                 <div class="o_setting_right_pane">
@@ -350,7 +364,20 @@
                                         <div class="o_setting_right_pane">
                                             <label string="Use Marketplace's Order Sequence?" for="use_marketplace_sequence"/>
                                             <div class="text-muted">
-                                                Order will named according to the marketplace order number instead of Odoo sequence.
+                                                Order will name according to the marketplace order number instead of Odoo sequence.
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-xs-12 col-md-6 o_setting_box" name="order_prefix" attrs="{'invisible':[('use_marketplace_sequence','=',True)]}">
+                                        <div class="o_setting_right_pane">
+                                            <label string="Order Prefix" for="order_prefix"/>
+                                            <div class="text-muted">
+                                                Order name will be set with given Prefix while importing Order.
+                                            </div>
+                                            <div class="text-muted">
+                                                <b>
+                                                    <field name="order_prefix"/>
+                                                </b>
                                             </div>
                                         </div>
                                     </div>
@@ -411,9 +438,37 @@
                                             </div>
                                         </div>
                                     </div>
+                                    <div class="col-xs-12 col-md-6 o_setting_box" name="salesperson_user_id">
+                                        <div class="o_setting_left_pane"/>
+                                        <div class="o_setting_right_pane">
+                                            <label string="Salesperson" for="salesperson_user_id"/>
+                                            <div class="text-muted">
+                                                Selected sales person will be used to process order. Make sure to set user with enough access rights.
+                                            </div>
+                                            <div class="text-muted">
+                                                <b>
+                                                    <field name="salesperson_user_id"/>
+                                                </b>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div class="row mt16 o_settings_container">
-                                    <div class="col-xs-12 col-md-6 o_setting_box" name="tax_account_id">
+                                    <div class="col-xs-12 col-md-6 o_setting_box" name="tax_system">
+                                        <div class="o_setting_left_pane"/>
+                                        <div class="o_setting_right_pane">
+                                            <label string="Tax System" for="tax_system"/>
+                                            <div class="text-muted">
+                                                Default Tax System
+                                            </div>
+                                            <div class="text-muted">
+                                                <b>
+                                                    <field name="tax_system" required="1"/>
+                                                </b>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-xs-12 col-md-6 o_setting_box" name="tax_account_id" attrs="{'invisible': [('tax_system','=','default')]}">
                                         <div class="o_setting_left_pane"/>
                                         <div class="o_setting_right_pane">
                                             <label string="Tax Account" for="tax_account_id"/>
@@ -427,7 +482,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="col-xs-12 col-md-6 o_setting_box" name="tax_refund_account_id">
+                                    <div class="col-xs-12 col-md-6 o_setting_box" name="tax_refund_account_id" attrs="{'invisible': [('tax_system','=','default')]}">
                                         <div class="o_setting_left_pane"/>
                                         <div class="o_setting_right_pane">
                                             <label string="Tax Account on Credit Notes" for="tax_refund_account_id"/>
@@ -437,6 +492,20 @@
                                             <div class="text-muted">
                                                 <b>
                                                     <field name="tax_refund_account_id" options="{'no_create' : True}"/>
+                                                </b>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-xs-12 col-md-6 o_setting_box" name="tax_account_id" attrs="{'invisible': [('tax_system','=','default')]}">
+                                        <div class="o_setting_left_pane"/>
+                                        <div class="o_setting_right_pane">
+                                            <label string="Tax Rounding" for="tax_rounding"/>
+                                            <div class="text-muted">
+                                                While searching/creating tax rounding will be applied according to configuration. If set zero means no rounding.
+                                            </div>
+                                            <div class="text-muted">
+                                                <b>
+                                                    <field name="tax_rounding" />
                                                 </b>
                                             </div>
                                         </div>
@@ -479,6 +548,18 @@
                             <page string="Workflow" name="workflow_config">
                             </page>
                             <page string="Automatic Jobs" name="cron_config" groups="base.group_system">
+                                <p colspan="2" class="alert alert-warning" role="alert">
+                                    <b>
+                                        <h3>Help</h3>
+                                        <ul>
+                                            <li>
+                                                For <strong>Auto Update Product's Price</strong> Schedule action we only update price of variant type Price Rule in pricelist.
+                                            </li>
+                                        </ul>
+                                    </b>
+                                </p>
+                                <button type="object" class="oe_right btn btn-primary" name="create_update_schedule_actions" icon="fa-cogs" string="Refresh" groups="base.group_no_one"/>
+                                <br/>
                                 <field name="cron_ids" context="{'active_test': False}">
                                     <tree editable="bottom" create="false" delete="false">
                                         <field name="name" required="1"/>
@@ -572,7 +653,7 @@
                                         </div>
                                         <br/>
                                     </div>
-                                    <div class="o_kanban_manage_button_section">
+                                    <div class="o_kanban_manage_button_section" groups="base_marketplace.group_base_marketplace_manager">
                                         <a class="o_kanban_manage_toggle_button" href="#">
                                             <i class="fa fa-ellipsis-v" aria-label="Selection" role="img" title="Selection"/>
                                         </a>
@@ -589,7 +670,7 @@
                                                 </span>
                                             </button>
                                             <button type="object" name="redirect_to_general_dashboard" icon="fa-pencil-square-o" class="btn btn-primary"
-                                                    style="display:unset !important;">
+                                                    groups="base_marketplace.group_base_marketplace_manager" style="display:unset !important;">
                                                 <span>
                                                     <i class="fa fa-area-chart"/>
                                                     Dashboard
@@ -615,7 +696,7 @@
                                     <div class="row mt16">
                                         <div class="col-2 border-right">
                                             <a name="%(base_marketplace.action_marketplace_customer_kanban)d" type="action" class="d-flex flex-column align-items-center">
-                                                <span class="fa fa-2x fa-users"/>
+                                                <span class="fa fa-2x fa-users" title="Customers"/>
                                                 <!--<span class="font-weight-bold">
                                                     <t t-esc="record.mk_customer_count.value"/>
                                                 </span>-->
@@ -624,7 +705,7 @@
                                         </div>
                                         <div class="col-2 border-right">
                                             <a name="%(base_marketplace.action_marketplace_listing_kanban)d" type="action" class="d-flex flex-column align-items-center">
-                                                <span class="fa fa-2x fa-product-hunt"/>
+                                                <span class="fa fa-2x fa-product-hunt" title="Listings"/>
                                                 <!--<span class="font-weight-bold">
                                                     <t t-esc="record.mk_listing_count.value"/>
                                                 </span>-->
@@ -633,7 +714,7 @@
                                         </div>
                                         <div class="col-2 border-right">
                                             <a name="%(base_marketplace.action_marketplace_orders_kanban)d" type="action" class="d-flex flex-column align-items-center">
-                                                <span class="fa fa-2x fa-usd"/>
+                                                <span class="fa fa-2x fa-usd" title="Orders"/>
                                                 <!--<span class="font-weight-bold">
                                                     <t t-esc="record.mk_order_count.value"/>
                                                 </span>-->
@@ -642,7 +723,7 @@
                                         </div>
                                         <div class="col-2 border-right">
                                             <a name="%(base_marketplace.action_marketplace_invoice_kanban)d" type="action" class="d-flex flex-column align-items-center">
-                                                <span class="fa fa-2x fa-pencil-square-o"/>
+                                                <span class="fa fa-2x fa-pencil-square-o" title="Invoices"/>
                                                 <!--<span class="font-weight-bold">
                                                     <t t-esc="record.mk_invoice_count.value"/>
                                                 </span>-->
@@ -651,7 +732,7 @@
                                         </div>
                                         <div class="col-2 border-right">
                                             <a name="%(base_marketplace.action_marketplace_shipment_kanban)d" type="action" class="d-flex flex-column align-items-center">
-                                                <span class="fa fa-2x fa-truck"/>
+                                                <span class="fa fa-2x fa-truck" title="Shipments"/>
                                                 <!--<span class="font-weight-bold">
                                                     <t t-esc="record.mk_shipment_count.value"/>
                                                 </span>-->
@@ -660,7 +741,7 @@
                                         </div>
                                         <div class="col-2">
                                             <a name="%(base_marketplace.action_marketplace_queue_job_kanban)d" type="action" class="d-flex flex-column align-items-center">
-                                                <span class="fa fa-2x fa-tasks"/>
+                                                <span class="fa fa-2x fa-tasks" title="Queues"/>
                                                 <!--<span class="font-weight-bold">
                                                     <t t-esc="record.mk_queue_count.value"/>
                                                 </span>-->

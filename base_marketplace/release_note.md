@@ -57,3 +57,31 @@
 1.7.4
 
 - Fixed export location from Odoo to Shopify issue.
+
+1.8
+
+- Smart notification while queue is created manually.
+- You can now define Order prefix.
+- Added option for Tax system where user can select Odoo's default tax system or marketplace tax system.
+
+1.9
+
+- Improve code of cron create. Give refresh button in instance to create cron if not created.
+- Ability to select update product if exising found in odoo.
+- Ability to select update price in pricelist while import listing.
+- Stop updating price in pricelist if already exist.
+
+2.0
+
+- Added auto clean log and queue functionality.
+
+2.1
+
+- Added Update Order Status in Marketplace button.
+- Added configuration for set Salesperson in order.
+
+2.2
+
+- Improve Marketplace Listing Image code.
+- Added tax rounding field in instance in order so user can set the how many digits are rounding while create tax and set tax percentage in odoo.
+- User can refund the remaining refund amount from odoo if no any refund lines available and order is not fully refunded.

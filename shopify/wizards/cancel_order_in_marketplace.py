@@ -42,7 +42,7 @@ class MKCancelOrder(models.TransientModel):
             record.update({
                 'shopify_tax_amount': shopify_tax_amount,
                 'shopify_amount_subtotal': shopify_amount_subtotal_to_refund,
-                'shopify_manual_refund_amount': min(shopify_amount_subtotal_to_refund + shopify_tax_amount + record.shopify_shipping_amount, record.shopify_amount_total),
+                'shopify_manual_refund_amount': min((shopify_amount_subtotal_to_refund or self.shopify_manual_refund_amount) + shopify_tax_amount + record.shopify_shipping_amount, record.shopify_amount_total),
             })
 
     shopify_cancel_reason = fields.Selection(CANCEL_REASON, "Cancel Reason", default="customer")
@@ -118,8 +118,8 @@ class MKCancelOrder(models.TransientModel):
                     'product_id': line.product_id.id,
                     'available_qty': available_qty,
                     'to_refund_qty': available_qty,
-                    'price_unit': line.price_unit - line.shopify_discount_amount,
-                    'refund_price_unit': line.price_unit - line.shopify_discount_amount,
+                    'price_unit': line.price_unit - (line.shopify_discount_amount/line.product_uom_qty),
+                    'refund_price_unit': line.price_unit - (line.shopify_discount_amount/line.product_uom_qty),
                     'order_line_id': line.id,
                 })
             result.update({'shopify_refund_payment_lines': [(6, 0, shopify_refund_payment_line_ids.ids)], 'shopify_remaining_shipping_amount': remaining_shipping_to_refund,
@@ -146,7 +146,7 @@ class MKCancelOrder(models.TransientModel):
         order_id = self.env['sale.order'].browse(active_id)
         if not order_id:
             raise UserError(_("Can't find order to cancel. Please go back to order list, open order and try again!"))
-        if float_compare((self.shopify_amount_subtotal + self.shopify_shipping_amount + self.shopify_tax_amount), self.shopify_manual_refund_amount, 2) != 0:
+        if self.shopify_refund_payment_lines and float_compare((self.shopify_amount_subtotal + self.shopify_shipping_amount + self.shopify_tax_amount), self.shopify_manual_refund_amount, 2) != 0:
             raise UserError(_("Subtotal + Shipping + Tax isn't matching with the Refund Amount. Please adjust refund unit price!"))
         mk_log_id = self.env['mk.log'].create_update_log(mk_instance_id=order_id.mk_instance_id, operation_type='export')
         mk_log_line_dict = self.env.context.get('mk_log_line_dict', {'error': [], 'success': []})
@@ -157,7 +157,7 @@ class MKCancelOrder(models.TransientModel):
                                 'quantity': int(line.to_refund_qty),
                                 'restock_type': restock_type}
             if restock_type in ['cancel', 'return']:
-                shopify_location_id = order_id.shopify_location_id
+                shopify_location_id = line.order_line_id.shopify_location_id
                 if not shopify_location_id:
                     shopify_location_id = self.env['shopify.location.ts'].search([('is_default_location', '=', True), ('mk_instance_id', '=', order_id.mk_instance_id.id)])
                     if not shopify_location_id:
@@ -165,7 +165,7 @@ class MKCancelOrder(models.TransientModel):
                             {'log_message': 'Default Shopify Location not found in Odoo while trying to Refund in Shopify. Order: {}'.format(order_id.name)})
                 refund_item_dict.update({'location_id': shopify_location_id.shopify_location_id})
             refund_item_list.append(refund_item_dict)
-        if not refund_item_list:
+        if not refund_item_list and not self.shopify_amount_total and not self.shopify_manual_refund_amount:
             return False
         shopify_transactions = shopify.Transaction().find(order_id=order_id.mk_id)
         gateway, parent_id = '', ''
@@ -197,7 +197,7 @@ class MKCancelOrder(models.TransientModel):
             raise UserError("Something went wrong while creating a refund in Shopify for order {} : {}".format(order_id.name, e))
 
         if response.errors and response.errors.errors:
-            errors = ",".join(error for error in response.errors.errors.get('base'))
+            errors = ",".join(error for error in response.errors.errors)
             raise UserError("{}".format(errors))
 
         shopify_order = shopify.Order.find(order_id.mk_id)

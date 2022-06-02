@@ -103,7 +103,7 @@ class MkListing(models.Model):
         ret_val['arch'] = etree.tostring(doc, encoding='unicode')
         return ret_val
 
-    def _marketplace_convert_weight(self, weight, weight_name):
+    def _marketplace_convert_weight(self, weight, weight_name, reverse=False):
         mk_uom_id = False
         if weight_name == 'lb':
             mk_uom_id = self.env.ref('uom.product_uom_lb')
@@ -117,7 +117,7 @@ class MkListing(models.Model):
             mk_uom_id = self.env.ref('uom.product_uom_ton')
         weight_uom_id = self.env['product.template']._get_weight_uom_id_from_ir_config_parameter()
         if mk_uom_id:
-            return mk_uom_id._compute_quantity(weight, weight_uom_id, round=False)
+            return weight_uom_id._compute_quantity(weight, mk_uom_id, round=False) if reverse else mk_uom_id._compute_quantity(weight, weight_uom_id, round=False)
         return False
 
     def get_odoo_product_variant_and_listing_item(self, mk_instance_id, variant_id, variant_barcode, variant_sku):
@@ -263,6 +263,21 @@ class MkListing(models.Model):
             getattr(self, '%s_published' % self.marketplace)()
         return True
 
+    def action_open_export_listing_view(self):
+        active_model = self._context.get('active_model')
+        active_ids = self._context.get('active_ids')
+        if active_model == 'mk.listing' and active_ids:
+            listing = self.env[active_model].browse(active_ids)
+            listing_instance = listing.mapped('mk_instance_id')
+            # making sure we only open marketplace wise view only if selected listing belongs to single instance.
+            if len(listing_instance) == 1:
+                if hasattr(self, '%s_open_export_listing_view' % listing_instance.marketplace):
+                    return getattr(self, '%s_open_export_listing_view' % listing_instance.marketplace)()
+        action = self.sudo().env.ref('base_marketplace.action_product_export_to_marketplace').read()[0]
+        context = self._context.copy()
+        action['context'] = context
+        return action
+
     def action_open_update_listing_view(self):
         active_model = self._context.get('active_model')
         active_ids = self._context.get('active_ids')
@@ -289,6 +304,18 @@ class MkListing(models.Model):
         self._cr.execute(query)
         result = [int(i[0]) for i in self._cr.fetchall()]
         return list(set(result))
+
+    def get_mk_listing_item_from_product_variants(self, product_ids, mk_instance_id):
+        listing_items = self.env['mk.listing.item'].search([('product_id', 'in', product_ids.ids), ('is_listed', '=', True), ('mk_instance_id', '=', mk_instance_id.id)])
+        return listing_items
+
+    def get_mk_listing_item_for_price_update(self, mk_instance_id):
+        if mk_instance_id.last_listing_price_update_date:
+            pricelist_items = mk_instance_id.pricelist_id.item_ids.filtered(lambda x: x.write_date > mk_instance_id.last_listing_price_update_date and x.applied_on == '0_product_variant')
+        else:
+            pricelist_items = mk_instance_id.pricelist_id.item_ids.filtered(lambda x: x.applied_on == '0_product_variant')
+        listing_items = self.get_mk_listing_item_from_product_variants(pricelist_items.mapped('product_id'), mk_instance_id)
+        return listing_items
 
     def remove_extra_listing_item(self, mk_id_list):
         if mk_id_list:

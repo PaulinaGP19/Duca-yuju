@@ -1,8 +1,10 @@
-from odoo import models, fields, api, _
 import base64
+import logging
 import hashlib
 import requests
-import logging
+import urllib.parse
+from odoo import models, fields, api, _
+from odoo.tools.mimetypes import guess_mimetype
 
 _logger = logging.getLogger("Teqstars:Base Marketplace")
 
@@ -53,7 +55,13 @@ class ListingImage(models.Model):
     def create(self, vals):
         res = super(ListingImage, self).create(vals)
         base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url')
-        url = base_url + '/marketplace/product/image/{}/{}'.format(self.env.cr.dbname, base64.urlsafe_b64encode(str(res.id).encode("utf-8")).decode("utf-8"))
+        mimetype = guess_mimetype(res.image, default='image/png')
+        imgext = '.' + mimetype.split('/')[1]
+        if imgext == '.svg+xml':
+            imgext = '.svg'
+
+        safe_name = urllib.parse.quote(res.name)
+        url = base_url + '/marketplace/product/image/{}/{}/{}'.format(self.env.cr.dbname, base64.urlsafe_b64encode(str(res.id).encode("utf-8")).decode("utf-8"), safe_name+imgext)
         if res.mk_listing_item_ids and not res.mk_listing_id:
             res.write({'mk_listing_id': res.mk_listing_item_ids.mapped('mk_listing_id') and res.mk_listing_item_ids.mapped('mk_listing_id')[0].id or False})
         res.write({'url': url})

@@ -24,13 +24,17 @@ class IrCron(models.Model):
         return res
 
     def create_marketplace_cron(self, mk_instance_id, name, method_name='', model_name='', interval_type='minutes', interval_number=20):
+        code = "model.{}({})".format(method_name, mk_instance_id.id)
+        cron_id = self.with_context(active_test=False).search([('code', '=', code)])
+        if cron_id:
+            return True
         vals = {'name': name,
                 'active': False,
                 'numbercall': -1,
                 'interval_number': interval_number,
                 'interval_type': interval_type,
                 'nextcall': fields.Datetime.to_string(datetime.now() + relativedelta(**{interval_type: interval_number})),
-                'code': "model.{}({})".format(method_name, mk_instance_id.id),
+                'code': code,
                 'state': 'code',
                 'model_id': self.env['ir.model'].search([('model', '=', model_name)]).id,
                 'mk_instance_id': mk_instance_id.id,

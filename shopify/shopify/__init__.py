@@ -5,3 +5,4 @@ from .limits import Limits
 from .api_version import *
 from .api_access import *
 from .collection import PaginatedIterator
+from . import shopify_limits_patch

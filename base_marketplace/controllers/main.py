@@ -5,8 +5,9 @@ from odoo.http import request
 
 class MarketplaceProductImage(http.Controller):
 
-    @http.route('/marketplace/product/image/<string:db_name>/<string:encodedres>', type='http', auth='public')
-    def retrive_marketplace_image_from_url(self, db_name, encodedres='', **kwargs):
+    @http.route(['/marketplace/product/image/<string:db_name>/<string:encodedres>',
+                 '/marketplace/product/image/<string:db_name>/<string:encodedres>/<string:filename>'], type='http', auth='public')
+    def retrive_marketplace_image_from_url(self, db_name, encodedres='', filename='', **kwargs):
         try:
             if len(encodedres) and db_name:
                 db_registry = registry(db_name)
@@ -16,7 +17,7 @@ class MarketplaceProductImage(http.Controller):
                     env = api.Environment(cr, SUPERUSER_ID, {})
                     decode_data = base64.urlsafe_b64decode(encodedres)
                     res_id = str(decode_data, "utf-8")
-                    status, headers, content = env['ir.http'].sudo().binary_content(model='mk.listing.image', id=res_id, field='image')
+                    status, headers, content = env['ir.http'].sudo().binary_content(model='mk.listing.image', id=res_id, field='image', filename=filename)
                     content_base64 = base64.b64decode(content) if content else ''
                     headers.append(('Content-Length', len(content_base64)))
                     return request.make_response(content_base64, headers)

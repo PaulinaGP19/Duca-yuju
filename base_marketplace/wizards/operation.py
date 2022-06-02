@@ -40,10 +40,11 @@ class MarketplaceOperation(models.TransientModel):
     mk_instance_id = fields.Many2one("mk.instance", string="Marketplace", domain=[('state', '=', 'confirmed')], default=_get_default_marketplace)
     marketplace = fields.Selection(related="mk_instance_id.marketplace", string='Marketplace Name')
 
-    # Marketplace Export Fields
+    # Marketplace Import Fields
     import_customers = fields.Boolean("Import Customers")
     import_products = fields.Boolean("Import Listing")
-    update_product_price = fields.Boolean("Update Product Price")
+    update_existing_product = fields.Boolean("Update Existing Product?", help="If True than it will update listing and listing item.")
+    update_product_price = fields.Boolean("Update Price?", help="If True than it will update price in instance's pricelist.")
     import_stock = fields.Boolean("Import Stock")
     import_orders = fields.Boolean("Import Sale Orders")
     from_date = fields.Datetime("From Date", default=_get_default_from_date)
@@ -81,7 +82,8 @@ class MarketplaceOperation(models.TransientModel):
                 getattr(self.env['res.partner'], '%s_import_customers' % instance.marketplace)(instance)
         if self.import_products:
             if hasattr(self.env['mk.listing'], '%s_import_listings' % instance.marketplace):
-                getattr(self.env['mk.listing'], '%s_import_listings' % instance.marketplace)(instance, mk_listing_id=self.mk_listing_id)
+                getattr(self.env['mk.listing'], '%s_import_listings' % instance.marketplace)(instance, mk_listing_id=self.mk_listing_id, update_product_price=self.update_product_price,
+                                                                                             update_existing_product=self.update_existing_product)
         if self.import_orders:
             if hasattr(self.env['sale.order'], '%s_import_orders' % instance.marketplace):
                 getattr(self.env['sale.order'].with_context(from_import_screen=True), '%s_import_orders' % instance.marketplace)(instance, self.from_date, self.to_date, mk_order_id=self.mk_order_id)
@@ -116,7 +118,7 @@ class MarketplaceOperation(models.TransientModel):
         product_active_ids = self._context.get('active_ids', [])
         odoo_template_ids = product_template_obj.search([('id', 'in', product_active_ids)])
         if not odoo_template_ids:
-            raise UserError(_("SKU not found in Selected Products."))
+            raise UserError(_("Something went wrong! Odoo isn't able to identify selected products or please select product again."))
         listing_ids = self.env['mk.listing']
         for instance in self.mk_instance_ids:
             for product_template in odoo_template_ids:
@@ -136,9 +138,14 @@ class MarketplaceOperation(models.TransientModel):
             listing_to_export = mk_listing_obj.search([('id', 'in', self._context.get('active_ids', [])), ('is_listed', '=', False)])
         else:
             listing_to_export = mk_listing_obj.search([('mk_instance_id', '=', self.mk_instance_id.id), ('is_listed', '=', False)])
+        if len(listing_to_export.mapped('mk_instance_id')) > 1:
+            raise UserError(_("Operation not allowed! Make sure selected listing belongs to only one instance."))
+        instance_id = listing_to_export.mk_instance_id
+        if hasattr(listing_to_export, '%s_export_product_limit' % instance_id.marketplace):
+            getattr(listing_to_export, '%s_export_product_limit' % instance_id.marketplace)()
         for listing in listing_to_export:
-            if hasattr(listing, '%s_export_listing_to_mk' % listing.mk_instance_id.marketplace):
-                getattr(listing, '%s_export_listing_to_mk' % listing.mk_instance_id.marketplace)(self)
+            if hasattr(listing, '%s_export_listing_to_mk' % instance_id.marketplace):
+                getattr(listing, '%s_export_listing_to_mk' % instance_id.marketplace)(self)
         return True
 
     def update_listing_to_mk(self):
@@ -148,7 +155,10 @@ class MarketplaceOperation(models.TransientModel):
             listing_to_update = mk_listing_obj.search([('id', 'in', self._context.get('active_ids', [])), ('is_listed', '=', True)])
         else:
             listing_to_update = mk_listing_obj.search([('mk_instance_id', '=', self.mk_instance_id.id), ('is_listed', '=', True)])
-        for listing in listing_to_update:
-            if hasattr(listing, '%s_update_listing_to_mk' % listing.mk_instance_id.marketplace):
-                getattr(listing, '%s_update_listing_to_mk' % listing.mk_instance_id.marketplace)(self)
+        if len(listing_to_update.mapped('mk_instance_id')) > 1:
+            raise UserError(_("Operation not allowed! Make sure selected listing belongs to only one instance."))
+        mk_instance_id = listing_to_update.mk_instance_id
+        # for listing in listing_to_update:
+        if hasattr(listing_to_update, '%s_update_listing_to_mk' % mk_instance_id.marketplace):
+            getattr(listing_to_update, '%s_update_listing_to_mk' % mk_instance_id.marketplace)(self)
         return True

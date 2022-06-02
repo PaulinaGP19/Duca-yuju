@@ -102,6 +102,8 @@
                         <group>
                             <field name="import_customers" widget="boolean_toggle"/>
                             <field name="import_products" widget="boolean_toggle"/>
+                            <field name="update_existing_product" attrs="{'invisible':[('import_products','=',False)]}" widget="boolean_toggle"/>
+                            <field name="update_product_price" attrs="{'invisible':['|',('import_products','=',False),('update_existing_product','=',False)]}" widget="boolean_toggle"/>
                             <field name="mk_listing_id" attrs="{'invisible':[('import_products','=',False)]}"/>
                             <field name="import_stock" widget="boolean_toggle"/>
                         </group>
@@ -232,9 +234,19 @@
             <field name="name">Export New Products in Marketplace</field>
             <field name="res_model">mk.operation</field>
             <field name="view_mode">form</field>
-            <field name="target">new</field>
-            <field name="binding_model_id" ref="model_mk_listing"/>
+            <field name="context">{}</field>
             <field name="view_id" ref="mk_operation_export_listing_to_mk_view"/>
+            <field name="target">new</field>
+        </record>
+
+        <record id="action_product_export_to_marketplace_action_server" model="ir.actions.server">
+            <field name="name">Export New Products in Marketplace</field>
+            <field name="type">ir.actions.server</field>
+            <field name="model_id" ref="model_mk_operation"/>
+            <field name="binding_model_id" ref="model_mk_listing"/>
+            <field name="binding_view_types">form,list</field>
+            <field name="state">code</field>
+            <field name="code">action = env['mk.listing'].action_open_export_listing_view()</field>
         </record>
 
         <record id="action_listing_update_to_marketplace" model="ir.actions.act_window">

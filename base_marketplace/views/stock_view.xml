@@ -1,12 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
+
+        <record id="view_picking_form_inherit_base_marketplace" model="ir.ui.view">
+            <field name="name">stock.picking.form.inherit.base.marketplace</field>
+            <field name="model">stock.picking</field>
+            <field name="inherit_id" ref="stock.view_picking_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//header" position="inside">
+                    <field name="mk_instance_id" invisible="1"/>
+                    <field name="updated_in_marketplace" invisible="1"/>
+                    <button name="update_order_status_to_marketplace" string=" Update in Marketplace" class="btn-primary" groups="base_marketplace.group_base_marketplace"
+                            attrs="{'invisible': ['|','|',('mk_instance_id', '=', False),('updated_in_marketplace','=',True),('state','!=','done')]}" type="object" icon="fa-truck"/>
+                </xpath>
+            </field>
+        </record>
+
         <record id="action_marketplace_shipment_kanban" model="ir.actions.act_window">
             <field name="name">Marketplace Shipments</field>
             <field name="type">ir.actions.act_window</field>
             <field name="res_model">stock.picking</field>
             <field name="view_mode">tree,form</field>
-            <field name="domain">[('mk_instance_id','=',active_id)]</field>
+            <field name="domain">[('mk_instance_id', '=', active_id)]</field>
         </record>
     </data>
 </odoo>

@@ -3,7 +3,7 @@ import base64
 import pprint
 import requests
 from .. import shopify
-from datetime import timedelta
+from datetime import timedelta, datetime
 import urllib.parse as urlparse
 from odoo import models, fields, tools, _
 from .misc import convert_shopify_datetime_to_utc
@@ -18,8 +18,8 @@ class MkListing(models.Model):
 
     continue_selling = fields.Boolean("Continue selling when out of stock?", default=False)
     inventory_management = fields.Selection(INVENTORY_MANAGEMENT, default='shopify')
-    fulfillment_service = fields.Selection(FULFILLMENT_SERVICE, default='manual')
-    shopify_fulfillment_service = fields.Char("Fulfillment Service", copy=False)
+    fulfillment_service = fields.Selection(FULFILLMENT_SERVICE,string='Fulfillemnt Service', default='manual')
+    shopify_fulfillment_service = fields.Char("Shopify Fulfillment Service", copy=False)
     tag_ids = fields.Many2many("shopify.tags.ts", "shopify_tags_ts_rel", "product_tmpl_id", "tag_id", "Shopify Tags")
     is_taxable = fields.Boolean("Taxable", default=False)
     shopify_image_ids = fields.One2many('shopify.product.image.ts', 'mk_listing_id', 'Shopify Images')
@@ -204,7 +204,6 @@ class MkListing(models.Model):
         vals = {}
         mk_id = shopify_product_dict.get("id", "")
         shopify_product_tags = shopify_product_dict.get('tags')
-        variant_taxable = shopify_product_dict.get("taxable", "")
         shopify_variant_list = shopify_product_dict.get("variants")
         shopify_product_title = shopify_product_dict.get("title", "")
         shopify_product_body_html = shopify_product_dict.get("body_html", "")
@@ -212,7 +211,6 @@ class MkListing(models.Model):
         shopify_product_created_at = convert_shopify_datetime_to_utc(shopify_product_dict.get("created_at", ""))
         shopify_product_published_at = convert_shopify_datetime_to_utc(shopify_product_dict.get("published_at", ""))
         variant_inventory_policy = shopify_variant_dict.get("inventory_policy", "")
-        variant_fulfillment_service = shopify_variant_dict.get("fulfillment_service", "")
         variant_inventory_management = shopify_variant_dict.get("inventory_management", "")
 
         if variant_inventory_management == 'shopify':
@@ -236,8 +234,6 @@ class MkListing(models.Model):
              'listing_create_date': shopify_product_created_at,
              'listing_update_date': shopify_product_updated_at,
              'listing_publish_date': shopify_product_published_at,
-             # 'shopify_fulfillment_service': variant_fulfillment_service,
-             'is_taxable': variant_taxable,
              'description': shopify_product_body_html,
              'is_published': True if shopify_product_published_at else False,
              'is_listed': True,
@@ -263,8 +259,10 @@ class MkListing(models.Model):
             'item_create_date': convert_shopify_datetime_to_utc(shopify_variant_dict.get("created_at", "")),
             'item_update_date': convert_shopify_datetime_to_utc(shopify_variant_dict.get("updated_at", "")),
             'is_listed': True,
+            'is_taxable': shopify_variant_dict.get('taxable'),
             'inventory_item_id': shopify_variant_dict.get("inventory_item_id", ""),
             'continue_selling': shopify_variant_dict.get("inventory_policy", ""),
+            'weight_unit': shopify_variant_dict.get("weight_unit", ""),
         }
         if variant_inventory_management == 'shopify':
             vals.update({'inventory_management': 'shopify'})
@@ -344,7 +342,7 @@ class MkListing(models.Model):
         shopify_product_type = shopify_product_dict.get("product_type", "")
         shopify_variant_list = shopify_product_dict.get("variants")
         mk_listing_id = self.search([('mk_instance_id', '=', mk_instance_id.id), ('mk_id', '=', mk_id)])
-        if not mk_listing_id and not is_update_existing_products:
+        if mk_listing_id and not is_update_existing_products:
             return False
         variant_sequence = 1
         listing_updated = False
@@ -508,13 +506,13 @@ class MkListing(models.Model):
                 variant_sequence = variant_sequence + 1
                 self.env['mk.log'].create_update_log(mk_instance_id=mk_instance_id, mk_log_id=mk_log_id, mk_log_line_dict={'success': [
                     {'log_message': 'IMPORT LISTING: {} successfully updated'.format(mk_listing_id.name), 'queue_job_line_id': queue_line_id and queue_line_id.id or False}]})
-            listing_item_id.create_or_update_pricelist_item(float(variant_price))
+            listing_item_id.create_or_update_pricelist_item(float(variant_price), update_product_price=update_product_price)
         if len(shopify_product_dict.get('variants')) != mk_listing_id.item_count:
             mk_id_list = [str(variant_dict.get('id')) for variant_dict in shopify_product_dict.get('variants')]
             mk_listing_id.remove_extra_listing_item(mk_id_list)
         return mk_listing_id
 
-    def shopify_import_listings(self, mk_instance_id, mk_listing_id=False):
+    def shopify_import_listings(self, mk_instance_id, mk_listing_id=False, update_product_price=False, update_existing_product=False):
         mk_instance_id.connection_to_shopify()
         if mk_listing_id:
             proudct_list = []
@@ -525,7 +523,8 @@ class MkListing(models.Model):
             for shopify_product in proudct_list:
                 shopify_product_dict = shopify_product.to_dict()
                 mk_listing_id = self.with_context(mk_log_line_dict=mk_log_line_dict, mk_log_id=mk_log_id).create_update_shopify_product(shopify_product_dict, mk_instance_id,
-                                                                                                                                        update_product_price=True)
+                                                                                                                                        update_product_price=update_product_price,
+                                                                                                                                        is_update_existing_products=update_existing_product)
                 if mk_listing_id and mk_instance_id.is_sync_images:
                     self.sync_product_image_from_shopify(mk_instance_id, mk_listing_id, shopify_product_dict)
             # Comment raise error because if in Shopify product has 5 variant and in odoo one variant is matched and create product if not found is disable then single matched
@@ -542,7 +541,7 @@ class MkListing(models.Model):
         if shopify_product_list:
             batch_size = mk_instance_id.queue_batch_limit or 100
             for shopify_products in tools.split_every(batch_size, shopify_product_list):
-                queue_id = mk_instance_id.action_create_queue(type='product')
+                queue_id = mk_instance_id.with_context(update_product_price=update_product_price, update_existing_product=update_existing_product).action_create_queue(type='product')
                 for product in shopify_products:
                     shopify_product_dict = product.to_dict()
                     name = shopify_product_dict.get('title', '') or ''
@@ -557,13 +556,6 @@ class MkListing(models.Model):
         mk_instance_id.last_listing_import_date = fields.Datetime.now()
         return True
 
-    def cancel_older_adjustments(self):
-        inventory_adjustments_ids = self.env['stock.inventory'].search([('is_shopify_adjustment', '=', True), ('state', '!=', 'done')])
-        for adjustment_id in inventory_adjustments_ids:
-            if not adjustment_id.state == 'cancel':
-                adjustment_id.action_cancel_draft()
-                adjustment_id.write({'state': 'cancel'})
-        return True
 
     def prepare_location_wise_inventory_level(self, shopify_inventory_levels):
         location_wise_inventory_dict = {}
@@ -635,12 +627,12 @@ class MkListing(models.Model):
     def shopify_import_stock(self, mk_instance_id):
         mk_log_id = self.env['mk.log'].create_update_log(mk_instance_id=mk_instance_id, operation_type='import')
         product_template_ids = self.search([('mk_instance_id', '=', mk_instance_id.id), ('is_listed', '=', True)])
-        self.cancel_older_adjustments()
         if product_template_ids:
             mk_instance_id.connection_to_shopify()
             location_ids = self.env['shopify.location.ts'].search([('mk_instance_id', '=', mk_instance_id.id)])
             if not location_ids:
-                log_message = "IMPORT STOCK: No location found for Shopify Instance {} at the time of Import stock!".format(mk_instance_id.name)
+                log_message = "IMPORT STOCK: No location found for Shopify Instance {} at the time of Import stock. Please set from Marketplace > Shopify > Locations".format(
+                    mk_instance_id.name)
                 self.env['mk.log'].create_update_log(mk_log_id=mk_log_id, mk_log_line_dict={'error': [{'log_message': log_message}]})
                 return False
 
@@ -684,10 +676,10 @@ class MkListing(models.Model):
                 variant_vals.update({'id': listing_item_id.mk_id,
                                      'title': listing_item_id.name,
                                      'grams': int(listing_item_id.product_id.weight * 1000),
-                                     'weight': listing_item_id.product_id.weight,
-                                     'weight_unit': 'kg',
+                                     'weight': self._marketplace_convert_weight(listing_item_id.product_id.weight, listing_item_id.weight_unit, reverse=True),
+                                     'weight_unit': listing_item_id.weight_unit,
                                      'sku': listing_item_id.default_code,
-                                     'taxable': self.is_taxable and 'true' or 'false', })
+                                     'taxable': listing_item_id.is_taxable and 'true' or 'false', })
                 if listing_item_id.product_id.barcode:
                     variant_vals.update({'barcode': listing_item_id.product_id.barcode})
                 # if self.shopify_fulfillment_service == 'manual':
@@ -810,6 +802,20 @@ class MkListing(models.Model):
             new_shopify_product.vendor = self.product_tmpl_id.seller_ids[0].display_name
         return new_shopify_product
 
+    def shopify_export_product_limit(self):
+        """
+        Checking for maximum product export limit to prevent user's process.
+
+        :return: True if selected product isn't more than limit.
+        :rtype: bool
+        :raise UserError:
+                * if selected product more than given limit.
+        """
+        max_limit = 80
+        if self and len(self) > max_limit:
+            raise UserError(_("System will not permits to send out more then 80 items all at once. Please select just 80 items for export."))
+        return True
+
     def shopify_export_listing_to_mk(self, operation_wizard):
         self.ensure_one()
         if self.mapped('listing_item_ids').filtered(lambda x: not x.default_code):
@@ -842,39 +848,35 @@ class MkListing(models.Model):
         return True
 
     def shopify_update_listing_to_mk(self, operation_wizard):
-        self.ensure_one()
-        result = False
         self.mk_instance_id.connection_to_shopify()
-        try:
-            shopify_product = shopify.Product().find(self.mk_id)
-        except Exception as e:
-            if e.code == 429:
-                time.sleep(3)
-                shopify_product = shopify.Product().find(self.mk_id)
-            else:
-                raise AccessError(_("Error while trying to find Shopify Template {} ERROR:{}".format(self.mk_id, e)))
+        for listing_id in self:
+            result = False
+            try:
+                shopify_product = shopify.Product().find(listing_id.mk_id)
+            except Exception as e:
+                raise AccessError(_("Error while trying to find Shopify Template {} ERROR:{}".format(listing_id.mk_id, e)))
 
-        if operation_wizard.is_set_quantity:
-            self.update_location_wise_qty_in_shopify()
+            if operation_wizard.is_set_quantity:
+                listing_id.update_location_wise_qty_in_shopify()
 
-        if operation_wizard.is_update_product:
-            self.prepare_update_vals_for_shopify_template(shopify_product)
+            if operation_wizard.is_update_product:
+                listing_id.prepare_update_vals_for_shopify_template(shopify_product)
 
-        self.update_shopify_variant_ts(shopify_product, operation_wizard)
-        if operation_wizard.is_update_product:
-            self.update_shopify_options_ts(shopify_product)
-        if not operation_wizard.is_set_quantity:
-            result = shopify_product.save()
-        if not self.is_published and operation_wizard.is_publish_in_store:
-            # shopify_product.published = 'true'
-            published_at = fields.Datetime.now()
-            published_at = published_at.strftime("%Y-%m-%dT%H:%M:%S")
-            shopify_product.published_at = published_at
-            result = shopify_product.save()
-        if result:
-            self.update_odoo_shopify_product(shopify_product)
-        if operation_wizard.is_set_images:
-            self.update_shopify_product_image_ts()
+            listing_id.update_shopify_variant_ts(shopify_product, operation_wizard)
+            if operation_wizard.is_update_product:
+                listing_id.update_shopify_options_ts(shopify_product)
+            if not operation_wizard.is_set_quantity:
+                result = shopify_product.save()
+            if not listing_id.is_published and operation_wizard.is_publish_in_store:
+                # shopify_product.published = 'true'
+                published_at = fields.Datetime.now()
+                published_at = published_at.strftime("%Y-%m-%dT%H:%M:%S")
+                shopify_product.published_at = published_at
+                result = shopify_product.save()
+            if result:
+                listing_id.update_odoo_shopify_product(shopify_product)
+            if operation_wizard.is_set_images:
+                listing_id.update_shopify_product_image_ts()
             # shopify_product.save() update_shopify_product_image_ts method create image in shopify but while save shopify_product
             # newly created image will be deleted and seems nothing is changed.
         return True
@@ -897,11 +899,7 @@ class MkListing(models.Model):
                 try:
                     shopify.InventoryLevel.set(shopify_location_id.shopify_location_id, shopify_variant_id.inventory_item_id, int(variant_quantity))
                 except Exception as e:
-                    if e.code == 429:
-                        time.sleep(3)
-                        shopify.InventoryLevel.set(shopify_location_id.shopify_location_id, shopify_variant_id.inventory_item_id, int(variant_quantity))
-                    else:
-                        raise AccessError(_("Error while trying to export stock for Shopify Product Variant: {}, ERROR: {}.".format(shopify_variant_id.name, e)))
+                    raise AccessError(_("Error while trying to export stock for Shopify Product Variant: {}, ERROR: {}.".format(shopify_variant_id.name, e)))
 
     def cron_auto_export_stock(self, mk_instance_id):
         mk_instance_id = self.env['mk.instance'].browse(mk_instance_id)
@@ -909,7 +907,7 @@ class MkListing(models.Model):
         return True
 
     def get_shopify_listing_items(self, mk_instance_id, product_ids):
-        return self.env['mk.listing.item'].search([('product_id', 'in', product_ids.ids), ('mk_instance_id', '=', mk_instance_id.id)])
+        return self.env['mk.listing.item'].search([('product_id', 'in', product_ids.ids), ('mk_instance_id', '=', mk_instance_id.id)], order='shopify_last_stock_update_date')
 
     def get_listing_item_for_stock_export_shopify(self, mk_instance_id, listing_item_ids):
         mrp = self.env['ir.module.module'].search([('name', '=', 'mrp'), ('state', '=', 'installed')])
@@ -938,14 +936,26 @@ class MkListing(models.Model):
             result = self.get_mk_listing_item(mk_instance_id)
             listing_item_ids = self.env['mk.listing.item'].browse(result)
             new_listing_item_ids = self.get_listing_item_for_stock_export_shopify(mk_instance_id, listing_item_ids)
-
+            new_listing_item_ids.filtered(lambda x: not x.shopify_last_stock_update_date)
+            if mk_instance_id.last_stock_update_date:
+                new_listing_item_ids = new_listing_item_ids.filtered(lambda x: not x.shopify_last_stock_update_date or x.shopify_last_stock_update_date <= mk_instance_id.last_stock_update_date)
+            else:
+                new_listing_item_ids = new_listing_item_ids.filtered(lambda x: not x.shopify_last_stock_update_date)
+            if not new_listing_item_ids:
+                return True
+            shopify_last_stock_update_date = new_listing_item_ids[0].shopify_last_stock_update_date or datetime.now()
             for shopify_location_id in location_ids:
                 location_id = shopify_location_id.location_id or False
                 if not location_id:
                     log_message = "Warehouse is not set for Shopify Location {}".format(shopify_location_id.name)
                     mk_log_line_dict['error'].append({'log_message': 'UPDATE STOCK: {}'.format(log_message)})
                     continue
+                counter_for_commit = 0
                 for shopify_variant_id in new_listing_item_ids:
+                    if counter_for_commit == 50:
+                        self._cr.commit()
+                        counter_for_commit = 0
+                    counter_for_commit += 1
                     if shopify_variant_id.product_id.type == 'product' and not shopify_variant_id.inventory_item_id:
                         log_message = "Inventory Item ID not found for Product Variant: {} while export stock.".format(shopify_variant_id.name)
                         mk_log_line_dict['error'].append({'log_message': 'UPDATE STOCK: {}'.format(log_message)})
@@ -955,15 +965,12 @@ class MkListing(models.Model):
                     try:
                         shopify.InventoryLevel.set(shopify_location_id.shopify_location_id, shopify_variant_id.inventory_item_id, int(variant_quantity))
                     except Exception as e:
-                        if e.code == 429:
-                            time.sleep(3)
-                            shopify.InventoryLevel.set(shopify_location_id.shopify_location_id, shopify_variant_id.inventory_item_id, int(variant_quantity))
-                        else:
-                            log_message = "Error while trying to export stock for Shopify Product Variant: {}, ERROR: {}.".format(shopify_variant_id.name, e)
-                            mk_log_line_dict['error'].append({'log_message': 'UPDATE STOCK: {}'.format(log_message)})
-                            continue
+                        log_message = "Error while trying to export stock for Shopify Product Variant: {}, ERROR: {}.".format(shopify_variant_id.name, e)
+                        mk_log_line_dict['error'].append({'log_message': 'UPDATE STOCK: {}'.format(log_message)})
+                        continue
                     log_message = "Successfully Updated {} stock of {} Listing in Shopify.".format(variant_quantity, shopify_variant_id.name)
                     mk_log_line_dict['success'].append({'log_message': 'UPDATE STOCK: {}'.format(log_message)})
+                    shopify_variant_id.write({'shopify_last_stock_update_date': shopify_last_stock_update_date if not shopify_variant_id.shopify_last_stock_update_date else datetime.now()})
             mk_instance_id.last_stock_update_date = fields.Datetime.now()
             self.env['mk.log'].create_update_log(mk_instance_id=mk_instance_id, mk_log_id=mk_log_id, mk_log_line_dict=mk_log_line_dict)
             if not mk_log_id.log_line_ids:
@@ -975,6 +982,49 @@ class MkListing(models.Model):
         self.shopify_import_stock(mk_instance_id)
         return True
 
+    def cron_auto_update_product_price(self, mk_instance_id):
+        mk_instance_id = self.env['mk.instance'].browse(mk_instance_id)
+        self.shopify_update_product_price(mk_instance_id)
+        return True
+
+    def shopify_open_export_listing_view(self):
+        action = self.env.ref('base_marketplace.action_product_export_to_marketplace').read()[0]
+        action['name'] = _("Export Product to Shopify")
+        action['views'] = [(self.env.ref('shopify.mk_operation_export_listing_to_shopify_view').id, 'form')]
+        action['context'] = self._context.copy()
+        return action
+
     def shopify_open_listing_in_marketplace(self):
         marketplace_url = self.mk_instance_id.shop_url + '/admin/products/' + self.mk_id
         return marketplace_url
+
+    def update_listing_item_price_to_shopify(self, listing_item_id, variant_price):
+        shopify_variant = shopify.Variant({'price': variant_price, 'id': listing_item_id.mk_id, 'product_id': listing_item_id.mk_listing_id.mk_id})
+        shopify_variant.save()
+        return shopify_variant
+
+    def shopify_update_product_price(self, mk_instance_ids):
+        if not isinstance(mk_instance_ids, list):
+            mk_instance_ids = [mk_instance_ids]
+        for mk_instance_id in mk_instance_ids:
+            mk_log_id = self.env['mk.log'].create_update_log(mk_instance_id=mk_instance_id, operation_type='export')
+            mk_log_line_dict = {'error': [], 'success': []}
+            mk_instance_id.connection_to_shopify()
+            listing_item_ids = self.get_mk_listing_item_for_price_update(mk_instance_id)
+            for listing_item_id in listing_item_ids:
+                if not listing_item_id.mk_id:
+                    continue
+                variant_price = mk_instance_id.pricelist_id.with_context(uom=listing_item_id.product_id.uom_id.id).get_product_price(listing_item_id.product_id, 1.0, False)
+                try:
+                    self.update_listing_item_price_to_shopify(listing_item_id, variant_price)
+                except Exception as e:
+                    log_message = "Error while trying to update price for Shopify Product Variant: {}, ERROR: {}.".format(listing_item_id.name, e)
+                    mk_log_line_dict['error'].append({'log_message': 'UPDATE PRICE: {}'.format(log_message)})
+                    continue
+                log_message = "Successfully Updated {} price of {} Listing in Shopify.".format(variant_price, listing_item_id.name)
+                mk_log_line_dict['success'].append({'log_message': 'UPDATE PRICE: {}'.format(log_message)})
+            mk_instance_id.last_listing_price_update_date = fields.Datetime.now()
+            self.env['mk.log'].create_update_log(mk_instance_id=mk_instance_id, mk_log_id=mk_log_id, mk_log_line_dict=mk_log_line_dict)
+            if not mk_log_id.log_line_ids:
+                mk_log_id.unlink()
+        return True

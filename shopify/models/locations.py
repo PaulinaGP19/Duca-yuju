@@ -17,51 +17,13 @@ class ShopifyAccount(models.Model):
                                          help="This warehouse is set in the Order if this location is found. Otherwise set Instance's warehouse.")
     company_id = fields.Many2one('res.company', string='Company', related='mk_instance_id.company_id', store=True)
     location_id = fields.Many2one('stock.location', 'Location', help="This warehouse location is used while import/export stock.", domain="[('usage','=','internal')]")
-    partner_id = fields.Many2one('res.partner', 'Customer')
     is_legacy = fields.Boolean('Is Legacy Location')
 
-    def prepare_domain_for_location_partner(self, vals, location):
-        domain = [('name', '=', vals.get('name'))]
-        address1 = location.get('address1')
-        address2 = location.get('address2')
-        city = location.get('city')
-        country = location.get('country')
-        country_code = location.get('country_code')
-        phone = location.get('phone')
-        province = location.get('province')
-        province_code = location.get('province_code')
-        zip = location.get('zip')
-        state_id = self.env['res.country.state'].search(
-            ['|', ('code', '=', province_code), ('name', '=', province)], limit=1)
-        country_id = self.env['res.country'].search(
-            ['|', ('code', '=', country_code), ('name', '=', country)], limit=1)
-
-        partner_vals = {}
-        address1 and domain.append(('street', '=', address1)) and partner_vals.update({'street': address1})
-        address2 and domain.append(('street2', '=', address2)) and partner_vals.update({'street2': address2})
-        state_id and domain.append(('state_id', '=', state_id.id)) and partner_vals.update({'state_id': state_id.id})
-        country_id and domain.append(('country_id', '=', country_id.id)) and partner_vals.update(
-            {'country_id': country_id.id})
-        city and domain.append(('city', '=', city)) and partner_vals.update({'city': city})
-        phone and domain.append(('phone', '=', phone)) and partner_vals.update({'phone': phone})
-        zip and domain.append(('zip', '=', zip)) and partner_vals.update({'zip': zip})
-        return domain, partner_vals
-
     def prepare_vals_for_location(self, location, mk_instance_id):
-        partner_obj = self.env['res.partner']
-        vals = {}
-        vals.update({'name': location.get('name')})
-        vals.update({'shopify_location_id': location.get('id')})
-        vals.update({'mk_instance_id': mk_instance_id.id})
-        vals.update({'is_legacy': location.get('legacy')})
-        domain, partner_vals = self.prepare_domain_for_location_partner(vals, location)
-        partner_id = partner_obj.search(domain, limit=1)
-        if partner_id:
-            vals.update({'partner_id': partner_id.id})
-        else:
-            partner_vals.update({'name': vals.get('name')})
-            partner_id = partner_obj.create(partner_vals)
-            vals.update({'partner_id': partner_id.id})
+        vals = {'name': location.get('name'),
+                'shopify_location_id': location.get('id'),
+                'mk_instance_id': mk_instance_id.id,
+                'is_legacy': location.get('legacy')}
         return vals
 
     def set_default_location(self, mk_instance_id):

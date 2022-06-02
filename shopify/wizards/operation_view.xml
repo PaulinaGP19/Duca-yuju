@@ -13,6 +13,44 @@
             </field>
         </record>
 
+        <record id="mk_operation_export_listing_to_shopify_view" model="ir.ui.view">
+            <field name="name">mk.operation.export.listing.to.shopify.form.view</field>
+            <field name="model">mk.operation</field>
+            <field name="arch" type="xml">
+                <form>
+                        <group>
+                            <group>
+                                <field name="is_set_price" widget="boolean_toggle"/>
+                                <field name="is_set_quantity" widget="boolean_toggle"/>
+                                <field name="is_set_images" widget="boolean_toggle"/>
+                            </group>
+                            <group>
+                                <field name="is_publish_in_store" widget="boolean_toggle"/>
+                            </group>
+                        </group>
+                        <div class="alert alert-danger" role="alert">
+                            <h4 class="alert alert-heading" role="alert"><strong>Notes</strong></h4>
+                            <p colspan="2" class="my-0">
+                                <strong>
+                                    <ol>
+                                        <li>
+                                            Limit of 80 products can be handled at a time.
+                                        </li>
+                                        <li>
+                                            Already exported product will be skipped.
+                                        </li>
+                                    </ol>
+                                </strong>
+                            </p>
+                        </div>
+                        <footer>
+                            <button string="Export Listing" type="object" class="btn-primary" name="export_listing_to_mk"/>
+                            <button string="Cancel" class="btn-secondary" special="cancel"/>
+                        </footer>
+                </form>
+            </field>
+        </record>
+
         <record id="mk_operation_import_form_view" model="ir.ui.view">
             <field name="name">marketplace.operation.export.form.view</field>
             <field name="model">mk.operation</field>
@@ -45,6 +83,9 @@
                             <li>
                                 You can import multiple records using by giving <strong>comma ' , '</strong> between ids. <strong>Exp. 5869502038181, 9869502038181,
                                 4586950203818</strong>
+                            </li>
+                            <li>
+                                If you want to update price enable <strong>Update Product Price</strong>. <strong>Note:</strong> Price will be updated in instance's pricelist.
                             </li>
                         </ul>
                     </p>

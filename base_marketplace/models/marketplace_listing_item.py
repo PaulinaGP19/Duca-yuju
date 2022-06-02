@@ -34,16 +34,14 @@ class MkListingItem(models.Model):
     sale_price = fields.Monetary(compute="_compute_sales_price_with_currency", currency_field='currency_id')
     currency_id = fields.Many2one('res.currency', compute="_compute_sales_price_with_currency")
 
-    def create_or_update_pricelist_item(self, variant_price):
+    def create_or_update_pricelist_item(self, variant_price, update_product_price=False):
         self.ensure_one()
         instance_id = self.mk_instance_id or self.mk_listing_id.mk_instance_id
         pricelist_currency = instance_id.pricelist_id.currency_id
         if pricelist_currency != self.product_id.product_tmpl_id.company_id.currency_id:
             variant_price = pricelist_currency._convert(variant_price, self.product_id.product_tmpl_id.company_id.currency_id, instance_id.company_id, fields.Date.today())
         pricelist_item_id = self.env['product.pricelist.item'].search([('pricelist_id', '=', instance_id.pricelist_id.id), ('product_id', '=', self.product_id.id)], limit=1)
-        if pricelist_item_id:
-            pricelist_item_id.write({'fixed_price': variant_price})
-        else:
+        if not pricelist_item_id:
             instance_id.pricelist_id.write({'item_ids': [(0, 0, {
                 'applied_on': '0_product_variant',
                 'product_id': self.product_id.id,
@@ -51,6 +49,9 @@ class MkListingItem(models.Model):
                 'compute_price': 'fixed',
                 'fixed_price': variant_price
             })]})
+        elif pricelist_item_id and update_product_price:
+            pricelist_item_id.write({'compute_price': 'fixed',
+                                     'fixed_price': variant_price})
         return True
 
     def action_change_listing_item_price(self):

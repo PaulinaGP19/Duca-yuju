@@ -10,6 +10,14 @@
                     <field name="fiscal_position_id" options="{'no_create': True}" position="after">
                         <field name="order_workflow_id"/>
                     </field>
+                    <xpath expr="//button[@name='action_view_invoice']" position="before">
+                        <button type="object" name="action_view_stock_moves_ts" class="oe_stat_button"
+                                attrs="{'invisible': [('stock_moves_count', '=', 0)]}"
+                                icon="fa-truck"
+                                groups="base.group_user">
+                            <field name="stock_moves_count" widget="statinfo"/>
+                        </button>
+                    </xpath>
                 </data>
             </field>
         </record>

@@ -101,3 +101,48 @@
 2.2
 
 - Added Access token in Shopify instance configuration.
+
+2.3
+
+- Added Tip and Gift Card product configuration in Instance. 
+
+2.4
+
+- Sometime Charge tax on product is not working so fixed that issue.
+- Fixed issue of not webhook.
+- You can define Order prefix as well.
+- Modified tax system of orders according to Tax System configured in instance.
+- Fixed access rights issue while access Import operation with User access rights.
+
+2.5
+
+- Limit export listing process to 80.
+- Schedule action for update product price.
+- User can now select/change Weight Unit from Listing Item.
+
+2.6
+
+- While performing Update Order Status if tracking url is present than we also sent tracking url.
+
+2.7
+
+- Do not create taxes if set Default Tax System to Odoo's Default Tax Behaviour.
+
+2.8
+
+- Change flow of fulfillment. Before fulfillment update location of order. 
+- Added Update Order Status in Marketplace in Pickings.
+
+2.9
+
+- Improved Shopify Authentication process.
+- Improve shopify location flow.
+
+3.0
+
+- Added multi-currency in sale orders.
+
+3.1
+
+- Improve the Shopify API calls limit.
+- Added shopify last stock update on(datetime) field and update that field while update stock to Odoo to Shopify.

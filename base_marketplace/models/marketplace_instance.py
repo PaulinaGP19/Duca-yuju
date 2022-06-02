@@ -108,6 +108,7 @@ class MkInstance(models.Model):
     is_sync_images = fields.Boolean("Sync Product Images?", help="If true then Images will be sync at the time of Import Listing.")
     sync_product_with = fields.Selection([('barcode', 'Barcode'), ('sku', 'SKU'), ('barcode_or_sku', 'Barcode or SKU')], string="Sync Product With", default="barcode_or_sku")
     last_listing_import_date = fields.Datetime("Last Listing Imported On", copy=False)
+    last_listing_price_update_date = fields.Datetime("Last Listing Price Updated On", copy=False)
 
     # Stock Fields
     stock_field_id = fields.Many2one('ir.model.fields', string='Stock Based On', help="At the time of Export/Update inventory this field is used.",
@@ -118,15 +119,19 @@ class MkInstance(models.Model):
 
     # Order Fields
     use_marketplace_sequence = fields.Boolean("Use Marketplace Order Sequence?", default=True)
+    order_prefix = fields.Char(string='Order Prefix', help="Order name will be set with given Prefix while importing Order.")
     team_id = fields.Many2one('crm.team', string='Sales Team', default=lambda self: self.env['crm.team'].search([], limit=1), help='Sales Team used for imported order.')
     discount_product_id = fields.Many2one('product.product', string='Discount Product', domain=[('type', '=', 'service')],
                                           help='Discount product used in sale order line.')
     delivery_product_id = fields.Many2one('product.product', string='Delivery Product', domain=[('type', '=', 'service')], help="""Delivery product used in sale order line.""")
     last_order_sync_date = fields.Datetime("Last Order Imported On", copy=False)
+    tax_system = fields.Selection([('default', "Odoo's Default Tax Behaviour"), ('according_to_marketplace', 'Create a new Tax if Not Found')], default='default',
+                                       help="""1. Odoo's Default Tax Behaviour - Tax will be applied based on Odoo's tax and fiscal position configuration,\n2. Create a new Tax if not found - System will create a new taxes according to the marketplace tax rate if not found in the Odoo.""")
     pricelist_id = fields.Many2one('product.pricelist', string='Pricelist')
     tax_account_id = fields.Many2one('account.account', domain=[('deprecated', '=', False)], string='Tax Account', help="Account that will be set while creating tax.")
     tax_refund_account_id = fields.Many2one('account.account', domain=[('deprecated', '=', False)], string='Tax Account on Credit Notes',
                                             help="Account that will be set while creating tax.")
+    salesperson_user_id = fields.Many2one('res.users', string='Salesperson', domain="[('share', '=', False)]", help="Selected sales person will be used to process order.")
 
     # Customer Fields
     account_receivable_id = fields.Many2one('account.account', string='Receivable Account', domain="[('deprecated', '=', False), ('internal_type', '=', 'receivable')]",
@@ -169,6 +174,8 @@ class MkInstance(models.Model):
     activity_user_ids = fields.Many2many('res.users', string='Responsible')
 
     is_sample_data = fields.Boolean("Is Sample Data", compute='_kanban_dashboard_graph')
+
+    tax_rounding = fields.Integer(string="Tax Rounding", default=2)
 
     def get_all_marketplace(self):
         # marketplace_list = self.search([]).mapped('marketplace')
@@ -221,7 +228,13 @@ class MkInstance(models.Model):
         if hasattr(self, '%s_marketplace_import_operation_wizard' % self.marketplace):
             return getattr(self, '%s_marketplace_import_operation_wizard' % self.marketplace)()
         else:
-            return self.env.ref('base_marketplace.action_marketplace_import_operation').read()[0]
+            return self.env.ref('base_marketplace.action_marketplace_import_operation').sudo().read()[0]
+
+    def get_marketplace_export_operation_wizard(self):
+        if hasattr(self, '%s_marketplace_export_operation_wizard' % self.marketplace):
+            return getattr(self, '%s_marketplace_export_operation_wizard' % self.marketplace)()
+        else:
+            return self.env.ref('base_marketplace.action_marketplace_export_operation').sudo().read()[0]
 
     def is_order_create_notification_message(self, count, marketplace):
         # Dynamic method for get notification title and message
@@ -274,7 +287,19 @@ class MkInstance(models.Model):
     def action_create_queue(self, type):
         self.ensure_one()
         queue_obj = self.env['mk.queue.job']
-        return queue_obj.create({'type': type, 'mk_instance_id': self.id})
+
+        queue_id = queue_obj.create({'type': type,
+                                     'mk_instance_id': self.id,
+                                     'update_existing_product': self.env.context.get('update_existing_product'),
+                                     'update_product_price': self.env.context.get('update_product_price')})
+        if self.env.context.get('active_model', '') == 'mk.instance':
+            self.env['bus.bus'].sendone((self._cr.dbname, 'res.partner', self.env.user.partner_id.id),
+                                        {'type': 'simple_notification',
+                                         'title': 'Queue Created',
+                                         'message': '{} Queue {} created successfully.'.format(type.title(), queue_id.name),
+                                         'sticky': False,
+                                         'warning': False})
+        return queue_id
 
     def _graph_title_and_key(self):
         return ['Total Selling', _('Total Selling')]
@@ -823,3 +848,6 @@ class MkInstance(models.Model):
                     node.set("modifiers", json.dumps({'invisible': expression.OR([existing_domain, new_domain])}))
         ret_val['arch'] = etree.tostring(doc, encoding='unicode')
         return ret_val
+
+    def create_update_schedule_actions(self):
+        self.env['ir.cron'].setup_schedule_actions(self)

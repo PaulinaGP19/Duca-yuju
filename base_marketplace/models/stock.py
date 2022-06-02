@@ -20,12 +20,13 @@ class StockMove(models.Model):
         return res
 
     def _assign_picking_post_process(self, new=False):
-        super(StockMove, self)._assign_picking_post_process(new=new)
+        res = super(StockMove, self)._assign_picking_post_process(new=new)
         if new and self.env.context.get('create_date', False):
             order_id = self.sale_line_id.order_id
             if order_id.mk_id:
                 picking_id = self.mapped('picking_id')
                 picking_id.scheduled_date = self.env.context.get('create_date')
+        return res
 
 
 class StockPicking(models.Model):
@@ -35,3 +36,12 @@ class StockPicking(models.Model):
     cancel_in_marketplace = fields.Boolean("Cancel in Marketplace", default=False, copy=False)
     mk_instance_id = fields.Many2one('mk.instance', "Marketplace Instance", ondelete='cascade', copy=False)
     no_of_retry_count = fields.Integer(string="Retry Count", help="No of count that queue went in process.", compute_sudo=True)
+
+    def update_order_status_to_marketplace(self):
+        """
+        Calling hook type method to update order status. Just need to add hook type method in individual marketplace app.
+        :return: True
+        """
+        if hasattr(self, '%s_update_order_status_to_marketplace' % self.mk_instance_id.marketplace):
+            getattr(self, '%s_update_order_status_to_marketplace' % self.mk_instance_id.marketplace)()
+        return True

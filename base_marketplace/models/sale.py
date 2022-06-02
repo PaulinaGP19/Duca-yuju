@@ -23,7 +23,11 @@ class SaleOrder(models.Model):
         queue_line_id = self.env.context.get('queue_line_id', False)
         company_id = mk_instance_id.warehouse_id.company_id
         for tax_line in tax_lines:
-            rate = round(tax_line['rate'] * 100, 2)
+            if mk_instance_id and mk_instance_id.tax_rounding:
+                rate = round(tax_line['rate'] * 100, mk_instance_id.tax_rounding)
+            else:
+                rate = tax_line['rate'] * 100
+
             tax_title = "{} {} {}".format(tax_line['title'], rate, 'Included' if taxes_included else 'Excluded')
 
             tax_id = tax_obj.search([('name', '=', tax_title), ('amount', '=', rate), ('type_tax_use', '=', 'sale'), ('company_id', '=', company_id.id),
@@ -68,6 +72,9 @@ class SaleOrder(models.Model):
 
         fiscal_position_id = order_vals.get('fiscal_position_id', vals.get('fiscal_position_id', False))
 
+        if vals.get('name', False):
+            order_vals.update({'name': vals.get('name', '')})
+
         order_vals.update({
             'state': 'draft',
             'date_order': vals.get('date_order', ''),
@@ -82,12 +89,11 @@ class SaleOrder(models.Model):
             'pricelist_id': vals.get('pricelist_id', ''),
             'fiscal_position_id': fiscal_position_id,
             'payment_term_id': vals.get('payment_term_id', ''),
-            # 'invoice_shipping_on_delivery': vals.get('invoice_shipping_on_delivery', False)
         })
         return order_vals
 
     def get_mk_listing_item_for_mk_order(self, mk_id, mk_instance_id):
-        return self.env['mk.listing.item'].search([('mk_instance_id', '=', mk_instance_id.id), ('mk_id', '=', mk_id)])
+        return False if not mk_id else self.env['mk.listing.item'].search([('mk_instance_id', '=', mk_instance_id.id), ('mk_id', '=', mk_id)])
 
     def open_sale_order_in_marketplace(self):
         self.ensure_one()

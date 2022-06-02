@@ -9,10 +9,23 @@
                 <field name="sequence" position="after">
                     <field name="inventory_item_id" attrs="{'invisible':[('marketplace','!=','shopify')]}"/>
                 </field>
+                <field name="export_qty_value" position="after">
+                    <field name="shopify_last_stock_update_date" attrs="{'invisible':[('marketplace','!=','shopify')]}" readonly="1" />
+                </field>
                 <group name="inventory_2" position="inside">
                     <field name="inventory_management" attrs="{'invisible':[('marketplace','!=','shopify')]}"/>
                     <field name="continue_selling" attrs="{'invisible':[('marketplace','!=','shopify')]}"/>
                 </group>
+                <page name="other_info" position="inside">
+                    <group>
+                        <group>
+                            <field name="is_taxable"/>
+                        </group>
+                        <group>
+                            <field name="weight_unit" attrs="{'invisible':[('marketplace','!=','shopify')]}"/>
+                        </group>
+                    </group>
+                </page>
             </field>
         </record>
     </data>

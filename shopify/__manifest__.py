@@ -1,6 +1,6 @@
 {
     "name": "Odoo Shopify Connector",
-    "version": "2.2",
+    "version": "3.1",
     "category": "Sales",
     'summary': 'Integrate & Manage Shopify Operations from Odoo by using Shopify Integration. We also provide modules like shipping dhl express fedex ups gls usps stamps.com shipstation easyship amazon sendclound ebay woocommerce bol.com catch',
 

@@ -4,14 +4,13 @@
     "category": "Extra",
     "summary": "Base app for Marketplace Apps. Perform automation stuff for sale orders and Invoices.",
 
-    "depends": ['account', 'stock', 'sale_management'],
+    "depends": ['account', 'stock', 'sale_management','base_marketplace'],
 
     'data': [
         'security/ir.model.access.csv',
 
         'views/order_workflow_view.xml',
         'views/sale_view.xml',
-
     ],
 
     'images': ['static/description/slideshow/mk_automation.gif'],

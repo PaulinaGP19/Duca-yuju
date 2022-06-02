@@ -1,4 +1,10 @@
-from odoo import models, fields, _
+import logging
+import datetime
+from odoo import models, fields, api, _
+from odoo.tools.misc import split_every
+from dateutil.relativedelta import relativedelta
+
+_logger = logging.getLogger("Teqstars:Base Marketplace")
 
 
 class MKLog(models.Model):
@@ -53,6 +59,19 @@ class MKLog(models.Model):
             vals['name'] = self.env['ir.sequence'].next_by_code('mk.log') or _('New')
         res = super(MKLog, self).create(vals)
         return res
+
+    @api.autovacuum
+    def _do_log_clean(self):
+        try:
+            date_ts = datetime.datetime.now() - relativedelta(days=10)
+            self._cr.execute("""SELECT id from mk_log where create_date < '%s' """ % date_ts)
+            res = self._cr.fetchall()
+            mk_log_ids = [res_id[0] for res_id in res]
+            for mk_log_batch in split_every(200, mk_log_ids, piece_maker=tuple):
+                self._cr.execute("""delete from mk_log where id IN %s""", [mk_log_batch])
+                self._cr.commit()
+        except Exception as e:
+            _logger.error('Error while cleaning log: {} '.format(e))
 
 
 class MKLogLine(models.Model):

@@ -41,7 +41,8 @@ class MkQueueJob(models.Model):
 
     def do_import_listing_process(self, listing_dict, mk_instance_id):
         listing_obj = self.env['mk.listing']
-        mk_listing_id = listing_obj.create_update_shopify_product(listing_dict, mk_instance_id, update_product_price=True)
+        mk_listing_id = listing_obj.create_update_shopify_product(listing_dict, mk_instance_id, update_product_price=self.update_product_price,
+                                                                  is_update_existing_products=self.update_existing_product)
         if not mk_listing_id:
             return False
         if mk_instance_id.is_sync_images:
@@ -96,7 +97,6 @@ class MkQueueJobLine(models.Model):
         queue_id.mk_instance_id.connection_to_shopify()
         for line in self.filtered(lambda x: x.mk_id):
             shopify_order = shopify.Order.find(line.mk_id)
-            self.env['sale.order'].fetch_order_transaction_from_shopify(shopify_order)  # Fetch payment transactions from Shopify and set in order dict.
             shopify_order_dict = shopify_order.to_dict()
             line.write({'state': 'draft', 'data_to_process': pprint.pformat(shopify_order_dict)})
             line.queue_id.with_context(hide_notification=True).shopify_order_queue_process(skip_api_call=True)

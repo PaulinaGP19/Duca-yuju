@@ -22,3 +22,6 @@ access_mk_sale_report_manager,mk_sale_report_manager,model_mk_sale_report,base_m
 access_res_partner_mk,access_res_partner_mk,model_res_partner_mk,,1,0,0,0
 access_mk_operation_user,mk_operation_user,model_mk_operation,base_marketplace.group_base_marketplace,1,0,0,0
 access_mk_operation_manager,mk_operation_manager,model_mk_operation,base_marketplace.group_base_marketplace_manager,1,1,1,1
+access_mk_cancel_order_user,mk_cancel_order_user,model_mk_cancel_order,base_marketplace.group_base_marketplace,1,0,0,0
+access_mk_cancel_order_manager,mk_cancel_order_manager,model_mk_cancel_order,base_marketplace.group_base_marketplace_manager,1,1,1,1
+

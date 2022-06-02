@@ -40,21 +40,6 @@
                             <div class="col-xs-12 col-md-6 o_setting_box" attrs="{'invisible':[('is_token','=',True)]}">
                                 <div class="o_setting_left_pane"/>
                                 <div class="o_setting_right_pane">
-                                    <label string="API Key" for="api_key"/>
-                                    <div class="text-muted">
-                                        API key used for authentication.
-                                    </div>
-                                    <div class="text-muted">
-                                        <b>
-                                            <field name="api_key"
-                                                   attrs="{'required':[('marketplace','=','shopify'),('is_token','=',False)], 'readonly':[('state','=','confirmed')]}"/>
-                                        </b>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-xs-12 col-md-6 o_setting_box" attrs="{'invisible':[('is_token','=',True)]}">
-                                <div class="o_setting_left_pane"/>
-                                <div class="o_setting_right_pane">
                                     <label string="Password" for="password"/>
                                     <div class="text-muted">
                                         Password used for authentication.
@@ -62,21 +47,6 @@
                                     <div class="text-muted">
                                         <b>
                                             <field name="password" attrs="{'required':[('marketplace','=','shopify'),('is_token','=',False)], 'readonly':[('state','=','confirmed')]}"/>
-                                        </b>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-xs-12 col-md-6 o_setting_box" attrs="{'invisible':[('is_token','=',True)]}">
-                                <div class="o_setting_left_pane"/>
-                                <div class="o_setting_right_pane">
-                                    <label string="Shared Secret" for="shared_secret"/>
-                                    <div class="text-muted">
-                                        Shared Secret key used for authentication.
-                                    </div>
-                                    <div class="text-muted">
-                                        <b>
-                                            <field name="shared_secret"
-                                                   attrs="{'required':[('marketplace','=','shopify'),('is_token','=',False)], 'readonly':[('state','=','confirmed')]}"/>
                                         </b>
                                     </div>
                                 </div>
@@ -99,19 +69,6 @@
                     </page>
                 </page>
                 <xpath expr="//page[@name='order_config']//div[hasclass('o_settings_container')][last()]" position="inside">
-                    <div class="col-xs-12 col-md-6 o_setting_box" attrs="{'invisible':[('marketplace','!=','shopify')]}">
-                        <div class="o_setting_left_pane">
-                            <b>
-                                <field name="close_order_after_fulfillment"/>
-                            </b>
-                        </div>
-                        <div class="o_setting_right_pane">
-                            <label string="Close Order after Fulfillment?" for="close_order_after_fulfillment"/>
-                            <div class="text-muted">
-                                At the time of Update Order Status close Shopify Orders.
-                            </div>
-                        </div>
-                    </div>
                     <div class="col-xs-12 col-md-6 o_setting_box" attrs="{'invisible':[('marketplace','!=','shopify')]}">
                         <div class="o_setting_left_pane"/>
                         <div class="o_setting_right_pane">
@@ -150,6 +107,34 @@
                             <div class="text-muted">
                                 <b>
                                     <field name="custom_product_id" attrs="{'required':[('marketplace','=','shopify')]}" options="{'no_quick_create':True,'no_create_edit':True}"/>
+                                </b>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xs-12 col-md-6 o_setting_box" attrs="{'invisible':[('marketplace','!=','shopify')]}">
+                        <div class="o_setting_left_pane"/>
+                        <div class="o_setting_right_pane">
+                            <label for="gift_card_product_id"/>
+                            <div class="text-muted">
+                                Shopify gift card orders will be imported with this product (Only Service type product).
+                            </div>
+                            <div class="text-muted">
+                                <b>
+                                    <field name="gift_card_product_id" attrs="{'required':[('marketplace','=','shopify')]}" options="{'no_quick_create':True,'no_create_edit':True}"/>
+                                </b>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xs-12 col-md-6 o_setting_box" attrs="{'invisible':[('marketplace','!=','shopify')]}">
+                        <div class="o_setting_left_pane"/>
+                        <div class="o_setting_right_pane">
+                            <label for="tip_product_id"/>
+                            <div class="text-muted">
+                                Shopify Tip order line will be imported with this product (Only Service type product).
+                            </div>
+                            <div class="text-muted">
+                                <b>
+                                    <field name="tip_product_id" attrs="{'required':[('marketplace','=','shopify')]}" options="{'no_quick_create':True,'no_create_edit':True}"/>
                                 </b>
                             </div>
                         </div>
@@ -215,7 +200,7 @@
                             <field name="payment_term_id" required="1"/>
                             <field name="order_workflow_id" required="1"/>
                             <field name="mk_instance_id" invisible="1"/>
-                            <field name="payment_gateway_id" domain="[('mk_instance_id', '=', parent.id)]" required="1" options="{'no_create_edit': True}"/>
+                            <field name="payment_gateway_id" context="{'default_mk_instance_id':parent.id}" domain="[('mk_instance_id', '=', parent.id)]" required="1" />
                             <field name="financial_status" required="1"/>
                         </tree>
                     </field>

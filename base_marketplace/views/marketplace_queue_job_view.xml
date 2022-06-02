@@ -75,10 +75,12 @@
                             <group>
                                 <field name="mk_instance_id"/>
                                 <field name="type"/>
+                                <field name="update_existing_product" attrs="{'invisible':[('type','!=','product')]}" widget="boolean_toggle"/>
                             </group>
                             <group>
                                 <field name="create_date"/>
                                 <field name="mk_log_id"/>
+                                <field name="update_product_price" attrs="{'invisible':['|',('update_existing_product','=',False), ('type','!=','product')]}" widget="boolean_toggle"/>
                             </group>
                         </group>
                         <notebook>

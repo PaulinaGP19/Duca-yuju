@@ -140,7 +140,7 @@ class ShopifyCollection(models.Model):
                 page_url = page_wise_manual_collection_list.next_page_url
                 parsed = urlparse.parse_qs(page_url)
                 page_info = parsed.get('page_info', False) and parsed.get('page_info', False)[0] or False
-                shopify_manual_collection_list = page_wise_manual_collection_list + shopify_manual_collection_list
+                shopify_manual_collection_list += page_wise_manual_collection_list
 
                 if not page_info:
                     break
@@ -159,7 +159,7 @@ class ShopifyCollection(models.Model):
                 page_url = page_wise_automated_collection_list.next_page_url
                 parsed = urlparse.parse_qs(page_url)
                 page_info = parsed.get('page_info', False) and parsed.get('page_info', False)[0] or False
-                shopify_automated_collection_list = page_wise_automated_collection_list + shopify_automated_collection_list
+                shopify_automated_collection_list += page_wise_automated_collection_list
                 if not page_info:
                     break
             return shopify_automated_collection_list

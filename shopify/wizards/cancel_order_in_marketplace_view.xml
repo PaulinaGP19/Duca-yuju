@@ -76,8 +76,18 @@
                     <div class="alert alert-info info_icon" role="alert" attrs="{'invisible' : [('shopify_refund_payment_lines', '!=', ())]}">
                         <span class="fa fa-lightbulb-o">
                         </span>
-                        It seems all items is already refunded in shopify. If you have remaining amount that still pending to refund then you have to do that from shopify.
+                        It seems all items is already refunded in shopify. You can refund remaining amount from here.
                     </div>
+                    <group attrs="{'invisible' : [('shopify_refund_payment_lines', '!=', ())]}">
+                        <group>
+                            <field name="shopify_manual_refund_amount" widget='monetary' options="{'currency_field': 'currency_id'}"/>
+                            <field name="refund_description"/>
+                        </group>
+                        <group>
+                            <field name="shopify_amount_total" widget='monetary' options="{'currency_field': 'currency_id'}" readonly="True" force_save="1"/>
+                            <field name="shopify_is_notify_customer"/>
+                        </group>
+                    </group>
                     <group string="Refund payments" attrs="{'invisible' : [('shopify_refund_payment_lines', '=', ())]}">
                         <field name="shopify_refund_payment_lines" nolabel="1">
                             <tree string="Refund Payments" editable="top" create="false" delete="false">
@@ -128,8 +138,7 @@
                         </group>
                     </group>
                     <footer>
-                        <button string="Refund Order" class="oe_highlight" type="object" name="do_refund_in_shopify"
-                                attrs="{'invisible' : [('shopify_refund_payment_lines', '=', ())]}"/>
+                        <button string="Refund Order" class="oe_highlight" type="object" name="do_refund_in_shopify"/>
                         <button string="Cancel" class="btn-secondary" special="cancel"/>
                     </footer>
                 </form>

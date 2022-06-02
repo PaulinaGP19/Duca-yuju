@@ -1,6 +1,7 @@
 import logging
-
+import datetime
 from odoo import models, fields, api, _
+from odoo.tools.misc import split_every
 from dateutil.relativedelta import relativedelta
 
 _logger = logging.getLogger("Teqstars:Base Marketplace")
@@ -43,6 +44,8 @@ class MkQueueJob(models.Model):
     cancelled_count = fields.Integer(string='Cancelled Count', compute='_compute_queue_line_counts_and_state', compute_sudo=True)
     failed_count = fields.Integer(string='Fail Count', compute='_compute_queue_line_counts_and_state', compute_sudo=True)
     no_of_retry_count = fields.Integer(string="Retry Count", help="No of count that queue went in process.", compute_sudo=True)
+    update_product_price = fields.Boolean("Update Price?", help="If True than it will update price in instance's pricelist.")
+    update_existing_product = fields.Boolean("Update Existing Product?", help="If True than product detail will be updated.")
 
     def create(self, vals):
         if vals.get('name', _('New')) == _('New'):
@@ -99,7 +102,11 @@ class MkQueueJob(models.Model):
                 [('state', 'not in', ['failed', 'processed']), '|', ('no_of_retry_count', '<', 3), ('no_of_retry_count', '=', False), ('mk_instance_id.state', '=', 'confirmed')],
                 order='id'):
             try:
-                record.do_process(cron=True)
+                salesperson_user_id = record.mk_instance_id.salesperson_user_id
+                if salesperson_user_id:
+                    record.with_user(salesperson_user_id).do_process(cron=True)
+                else:
+                    record.do_process(cron=True)
             except Exception as e:
                 record.message_post(body='Facing issue while process Queue {}, ERROR: {}'.format(record.name, e))
             finally:
@@ -124,7 +131,7 @@ class MkQueueJob(models.Model):
         activity_date_deadline_range = mk_instance_id.activity_date_deadline_range
         activity_type_id = mk_instance_id.mk_activity_type_id
         model_id = self.env['ir.model'].search([('model', '=', 'mk.queue.job')]).id
-        if activity_type_id and activity_date_deadline_range_type and activity_date_deadline_range:
+        if activity_type_id and activity_date_deadline_range_type:
             date_deadline = fields.Date.context_today(mk_instance_id) + relativedelta(**{activity_date_deadline_range_type: activity_date_deadline_range})
             for user_id in mk_instance_id.activity_user_ids:
                 vals = {'activity_type_id': activity_type_id.id,
@@ -147,6 +154,20 @@ class MkQueueJob(models.Model):
         if hasattr(self, '%s_%s_retry_failed_queue' % (self.mk_instance_id.marketplace, self.type)):
             getattr(self.with_context(mk_log_id=mk_log_id), '%s_%s_retry_failed_queue' % (self.mk_instance_id.marketplace, self.type))()
         return True
+
+    @api.autovacuum
+    def _do_queue_clean(self):
+        try:
+            date_ts = datetime.datetime.now() - relativedelta(days=10)
+            self._cr.execute("""SELECT id from mk_queue_job where create_date < '%s' """ % date_ts)
+            res = self._cr.fetchall()
+            mk_queue_job_ids = [res_id[0] for res_id in res]
+            for mk_queue_job_batch in split_every(100, mk_queue_job_ids, piece_maker=tuple):
+                self._cr.execute("""delete from mail_message where model='mk.queue.job' AND res_id IN %s""", [mk_queue_job_batch])
+                self._cr.execute("""delete from mk_queue_job where id IN %s""", [mk_queue_job_batch])
+                self._cr.commit()
+        except Exception as e:
+            _logger.error('Error while cleaning queue job log: {} '.format(e))
 
 
 class MkQueueJobLine(models.Model):

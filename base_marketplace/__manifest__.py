@@ -1,6 +1,6 @@
 {
     "name": "Base Marketplace Connector",
-    "version": "1.7.4",
+    "version": "2.2",
     "category": "Extra",
     "summary": "Base app for all the marketplace connector of TeqStars.",
 

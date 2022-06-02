@@ -18,5 +18,6 @@ from . import shopify_financial_workflow_config
 from . import webhook
 from . import marketplace_queue_job
 from . import shopify_fraud_analysis
+from . import product
 # from . import account_bank_statement
 # from . import payout
