@@ -81,8 +81,8 @@ class ResPartner(models.Model):
         }
         customer_data.update(defaults)
         partners = {
-            'delivery': customer_data.pop('billing_address', dict()),
-            'invoice': customer_data.pop('shipping_address', dict())
+            'invoice': customer_data.pop('billing_address', dict()),
+            'delivery': customer_data.pop('shipping_address', dict())
         }
 
         if hasattr(self, 'partner_gid'):
@@ -98,6 +98,7 @@ class ResPartner(models.Model):
             vat_id = customer_data.get('vat')
             partner_found = self.search([('vat', '=', vat_id)], limit=1)
             if partner_found.id:
+                logger.debug("### Existe ###")
                 partner_exist = True
         
         if partner_exist:
@@ -117,16 +118,26 @@ class ResPartner(models.Model):
                     code='create_costumer_error',
                     description='Error trying to create new costumer: {}'.format(ex)
                 )
+
         warnings = list()
         for type_, partner in partners.items():
             if not partner:
                 continue
+            
+            if partner_exist == True:
+                logger.debug("### Busca direcciones del mismo cliente y del mismo tipo {} ###".format(type_))
+                address_exists = self.search([('parent_id', '=', new_customer.id), ('type', '=', type_)], limit=1)
+                if address_exists.ids:
+                    logger.debug("## Hay direcciones iguales siguiente ###")
+                    continue
+
             r = self.add_address(customer_id=new_customer.id,
                                  type_=type_,
                                  address=partner)
 
             if not r['success']:
                 warnings.extend(r['errors'])
+
         remove_fields = ['image', 'image_medium', 'image_small', 'image_1920',
                          'image_1024', 'image_512', 'image_256', 'image_128']
         new_customer_data = new_customer.copy_data()[0]
@@ -151,6 +162,7 @@ class ResPartner(models.Model):
         :type address: dict
         :return:
         """
+        logger.debug("## Add Address ##")
         parent_customer = self.browse(customer_id)
         country_code = address.pop('country_code', None)
 

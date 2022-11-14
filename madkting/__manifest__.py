@@ -15,7 +15,7 @@
     'author': "Israel Calderón Aguilar, Gerardo A Lopez Vega",
     'website': "https://yuju.io/",
     'category': 'Sales',
-    'version': '0.3.1',
+    'version': '1.1.1',
 
     # any module necessary for this one to work correctly
     'depends': [
@@ -86,3 +86,22 @@
 
 # Version 0.3.1
 # *** Agrega validacion para buscar rfc cliente antes de crearlo.
+
+# Version 0.3.2
+# *** Agrega validacion de tipos de direccion antes de crearla.
+
+# Version 0.3.3
+# *** Arregla bug asignacion de tipo de direccion distinta en validacion de RFC.
+
+# Version 0.3.4
+# *** Arregla bug campo comment en pago, se modifica por ref
+
+# Version 0.3.5
+# *** Arregla bug si no se envia impuesto, se quita el impuesto default del producto
+
+# Version 0.4
+# *** Actualiza metodo de pago de factura
+
+# Version 1.1.1
+# *** Actualiza metodo de crear/actualizar orden, ordenes en borrador si no se pueden confirmar,
+# *** Modifica validacion codigo de barras.

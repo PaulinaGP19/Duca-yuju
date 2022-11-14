@@ -180,6 +180,15 @@ class SaleOrder(models.Model):
             order_exists = self.search([('channel_order_reference', '=', order_data.get("channel_order_reference"))], limit=1)
             if not force_creation and order_exists:
                 logger.debug("### ORDER EXISTS {} ###".format(order_data.get("channel_order_reference")))
+
+                if order_exists.state in ['draft', 'sent']:
+                    try:
+                        order_exists.action_confirm()
+                    except Exception as ex:
+                        post_message = 'The sale order counldn\'t be confirmed because of the following exception: {}'.format(ex)
+                        logger.debug(post_message)
+                        order_exists.message_post(body=post_message)
+
                 data=order_exists.yuju_get_data()
                 logger.debug("### RESPONSE MDK CREATE EXISTS ####")
                 logger.debug(data)
@@ -291,8 +300,9 @@ class SaleOrder(models.Model):
                                     'The transaction has been rolledback. '
                                     'Exception: {}'.format(line.get('product_id'), lex)
                     )
-                else:                    
-                    if not set_tax_rate_by_product and tax_cache.get(tax_rate):
+                else:     
+                    logger.debug(line)                   
+                    if not set_tax_rate_by_product and tax_cache.get(tax_rate):                        
                         new_line.tax_id = tax_cache[tax_rate]
                         continue
                     if set_tax_rate_by_product and product_tax_rate:
@@ -304,20 +314,27 @@ class SaleOrder(models.Model):
                                                                        ('company_id', '=', company_id)],
                                                                       limit=1)
                         new_line.tax_id = tax_cache.get(product_tax_rate)
+                    if new_line.tax_id and not tax_rate and not set_tax_rate_by_product:
+                        logger.info("Si no se reciben impuestos se quita el default")
+                        new_line.tax_id = [(6, 0, [])]
+                        continue
 
             try:
+                # raise ValueError('Error on process..')
                 if not config.orders_unconfirmed:
                     new_sale.action_confirm()
                 else:
                     logger.debug('orders_unconfirmed, the order should be confirmed manually')
             except Exception as ex:
-                new_sale.unlink()
-                logger.exception(ex)
-                return results.error_result(
-                    code='sale_confirm_error',
-                    description='The sale order counldn\'t be confirmed because of the following exception: {}'.format(ex))
-            else:
-                data=new_sale.yuju_get_data()
+                # new_sale.unlink()
+                post_message = 'The sale order counldn\'t be confirmed because of the following exception: {}'.format(ex)
+                logger.debug(post_message)
+                new_sale.message_post(body=post_message)
+                # return results.error_result(
+                #     code='sale_confirm_error',
+                #     description='The sale order counldn\'t be confirmed because of the following exception: {}'.format(ex))
+            # else:
+            data=new_sale.yuju_get_data()
         # logger.debug("### RESPONSE MDK CREATE ####")
         # logger.debug(data)
         return results.success_result(data)
@@ -377,6 +394,7 @@ class SaleOrder(models.Model):
         :rtype: dict
         """
         order = self.search([('id', '=', order_id)])
+        config = self.env['madkting.config'].get_config()
 
         if not order:
             return results.error_result(code='sale_not_exists',
@@ -389,6 +407,17 @@ class SaleOrder(models.Model):
         if not updates:
             return results.error_result(code='not_valid_data',
                                         description='The attributes you\'re trying to update are invalid')
+
+        if order.state in ['draft', 'sent'] and config and not config.orders_unconfirmed:
+            try:                
+                order.action_confirm()
+            except Exception as ex:
+                return results.error_result(
+                    code='sale_confirm_error',
+                    description='The sale order counldn\'t be confirmed because of the following exception: {}'.format(ex))
+
+        logger.debug("#### UPDATE ORDER ####")
+        logger.debug(updates)
 
         try:
             order.write(updates)
@@ -651,6 +680,11 @@ class SaleOrder(models.Model):
         if not order:
             return results.error_result(code='sale_not_exists',
                                         description='order {} doesn\'t exists'.format(order_id))
+
+        if order.state not in ['sale', 'done']:
+            return results.error_result(code='sale_not_confirmed',
+                                        description='order {} is not confirmed'.format(order_id))
+
         order.ensure_one()
 
         if order.invoice_ids:
@@ -659,7 +693,7 @@ class SaleOrder(models.Model):
             # if invoice is cancelled skip this and try to create it
             if invoice.state != 'cancel':
                 if invoice.state not in ['posted', 'paid', 'ready']:                    
-                    invoice.post()
+                    invoice.action_post()
                     # deprecated action_invoice_open()
                     # invoice.action_invoice_open()
                 invoice_data = invoice.copy_data()[0]
@@ -681,49 +715,90 @@ class SaleOrder(models.Model):
                                                     'the following exception: {}'.format(ex))
         else:
             invoice.ensure_one()
-            invoice.post()
+            invoice.action_post()
             invoice_data = invoice.copy_data()[0]
             invoice_data['id'] = invoice.id
             invoice_data['name'] = invoice.name
 
-            if order.payment_id:
-                logger.debug("Order already with payment...")
-                try:
-                    payment = self.env['account.payment'].search([('id', '=', order.payment_id)], limit=1)
-                    if payment and payment.state == 'posted':
-                        logger.debug("Payment already posted...")
-                        payment.action_draft()
-                    payment.invoice_ids = [invoice.id]
-                    payment.post()
-                except exceptions.AccessError as err:
-                    return results.error_result(
-                        code='access_error',
-                        description=str(err)
-                    )
-                except Exception as ex:
-                    logger.exception(ex)
-                    return results.error_result(
-                        code='payment_post_error',
-                        description='Payment {} couldn\'t be posted because of the '
-                                    'following error: {}'.format(payment.id, ex)
-                    )
+            return results.success_result(data=invoice_data)
+
+            # if order.payment_id:
+            #     logger.debug("Order already with payment...")
+            #     try:
+            #         payment = self.env['account.payment'].search([('id', '=', order.payment_id)], limit=1)
+            #         if payment and payment.state == 'posted':
+            #             logger.debug("Payment already posted...")
+            #             payment.action_draft()
+            #         payment.invoice_ids = [invoice.id]
+            #         payment.post()
+            #     except exceptions.AccessError as err:
+            #         return results.error_result(
+            #             code='access_error',
+            #             description=str(err)
+            #         )
+            #     except Exception as ex:
+            #         logger.exception(ex)
+            #         return results.error_result(
+            #             code='payment_post_error',
+            #             description='Payment {} couldn\'t be posted because of the '
+            #                         'following error: {}'.format(payment.id, ex)
+            #         )
                 
+            #     try:
+            #         invoice.action_invoice_paid()
+            #     except exceptions.AccessError as err:
+            #         return results.error_result(
+            #             code='access_error',
+            #             description=str(err)
+            #         )
+            #     except Exception as ex:
+            #         logger.exception(ex)
+            #         return results.error_result(
+            #             code='invoice_update_payed',
+            #             description='Error updating invoice to payed: {}'.format(ex)
+            #         )          
+            #     return results.success_result(data=invoice_data)
+            # else:
+            #     return results.success_result(data=invoice_data)
+
+    def _concilia_factura_pago(self, payment, factura):
+        credit_line = None
+        for line in payment.line_ids:
+
+            if line.credit > 0:
+                credit_line = line
+
+        if credit_line:
+            invoice_lines = factura.line_ids.filtered(lambda line: line.account_id == credit_line.account_id and not line.reconciled)
+            
+            if invoice_lines:
+                invoice_lines += credit_line
+                logger.info(invoice_lines)
                 try:
-                    invoice.action_invoice_paid()
-                except exceptions.AccessError as err:
-                    return results.error_result(
-                        code='access_error',
-                        description=str(err)
-                    )
-                except Exception as ex:
-                    logger.exception(ex)
-                    return results.error_result(
-                        code='invoice_update_payed',
-                        description='Error updating invoice to payed: {}'.format(ex)
-                    )          
-                return results.success_result(data=invoice_data)
-            else:
-                return results.success_result(data=invoice_data)
+                    rec = invoice_lines.reconcile()
+                except Exception as e:
+                    post_message = "Failed to reconcile invoice {} with payment {}, error: {}.".format(factura.name, payment.name, e)
+                    factura.message_post(body=post_message)
+                    return False
+                else:
+                    if not factura.payment_state == 'paid':
+                        post_message = "No se ha pagado la factura {}.".format(factura.name)
+                        factura.message_post(body=post_message)
+                        return False
+
+                    logger.info("Reconciled")
+                    logger.info(rec)
+                    return True
+        
+        post_message = "Failed to reconcile invoice {} with payment {}.".format(factura.name, payment.name)
+        factura.message_post(body=post_message)
+        return False
+
+    @api.model
+    def test_concilia_factura(self, invoice_id, payment_id):
+        factura = self.env['account.move'].browse(invoice_id)
+        pago = self.env['account.payment'].browse(payment_id)
+        return self._concilia_factura_pago(pago, factura)
 
     @api.model
     def charge_invoice(self, invoice_id, payment_method_id=None, journal_id=None, sale_id=None):
@@ -754,7 +829,7 @@ class SaleOrder(models.Model):
             invoice.ensure_one()
 
             # Update invoice_payment_state instead state on Odoo V13
-            if invoice.invoice_payment_state == 'paid':
+            if invoice.payment_state == 'paid':
                 return results.error_result(code='already_paid',
                                             description='invoice already paid')
 
@@ -800,8 +875,8 @@ class SaleOrder(models.Model):
             if sale:
                 payment = payment_model.create({'amount': sale.amount_total,
                                                 'partner_id' : sale.partner_id.id,
-                                                'communication' : sale.name,
-                                                'payment_date': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+                                                'ref' : sale.name,
+                                                'date': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
                                                 'payment_type': 'inbound',
                                                 'payment_method_id': payment_method_id,
                                                 'journal_id': journal_id,
@@ -810,14 +885,13 @@ class SaleOrder(models.Model):
             else:
                 payment = payment_model.create({'amount': invoice.amount_total,
                                                 'partner_id' : invoice.partner_id.id,
-                                                'communication' : invoice.invoice_origin,
-                                                'payment_date': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+                                                'ref' : invoice.invoice_origin,
+                                                'date': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
                                                 'payment_type': 'inbound',
                                                 'payment_method_id': payment_method_id,
                                                 'journal_id': journal_id,
                                                 'currency_id': invoice.currency_id.id,
                                                 'partner_type': 'customer'})
-                payment.invoice_ids = [invoice_id]
         
         except exceptions.AccessError as err:
             return results.error_result(
@@ -831,8 +905,15 @@ class SaleOrder(models.Model):
                 description='payment for invoice couldn\'t be saved because '
                             'of the following exception: {}'.format(ex))
 
+        # else:
+        #     try:
+        #         payment.invoice_ids = [invoice_id]
+        #     except Exception as e:
+        #         logger.exception(e)
+        #         pass
+
         try:
-            payment.post()
+            payment.action_post()
         except exceptions.AccessError as err:
             return results.error_result(
                 code='access_error',
@@ -864,21 +945,18 @@ class SaleOrder(models.Model):
                 return results.success_result()
            
         else:
-            try:           
-                invoice.action_invoice_paid()
-            except exceptions.AccessError as err:
-                return results.error_result(
-                    code='access_error',
-                    description=str(err)
-                )
+            try:               
+                self._concilia_factura_pago(payment, invoice)
             except Exception as ex:
                 logger.exception(ex)
+                post_message = "Error al pagar la factura: {}.".format(ex)
+                invoice.message_post(body=post_message)
                 return results.error_result(
                     code='invoice_update_payed',
                     description='Error updating invoice to payed: {}'.format(ex)
                 )
             else:
-                return results.success_result()
+                return results.success_result({})
 
     @api.model
     def cancel_order(self, order_id):
@@ -898,40 +976,49 @@ class SaleOrder(models.Model):
             return results.error_result(code='sale_already_cancelled')
 
         # validate if the sale lines moves are not done
-        if sale_order.has_lines_not_cancellable():
-            return results.error_result(
-                code='sale_stock_move_done',
-                description='The sale has stock moves with status done'
-            )
+        # if sale_order.has_lines_not_cancellable():
+        #     return results.error_result(
+        #         code='sale_stock_move_done',
+        #         description='The sale has stock moves with status done'
+        #     )
 
         try:
-            r = sale_order.action_cancel()
+           r = sale_order.with_context({'disable_cancel_warning': True}).action_cancel()
         except exceptions.AccessError as err:
+            post_message = "Error trying to cancel order {}.".format(err)
+            logger.debug(post_message)
+            sale_order.message_post(body=post_message)
             return results.error_result(
                 code='access_error',
                 description=str(err)
             )
         except Exception as ex:
+            post_message = "Error trying to cancel order {}.".format(err)
+            logger.debug(post_message)
+            sale_order.message_post(body=post_message)
             return results.error_result(
                 code='cancel_error',
                 description=str(ex)
             )
         else:
-            if not r:
-                return results.error_result('cancel_error')
+            post_message = 'Order cancelled'
+            logger.debug(post_message)
+            sale_order.message_post(body=post_message)
 
-            if sale_order.invoice_ids:
-                if sale_order.has_journal_not_cancellable():
-                    warnings.append(
-                        'invoice couldn\'t be cancelled because of journal policy'
-                    )
+            if sale_order.invoice_ids:                
+                try:
+                    sale_order.invoice_ids.button_draft()
+                    sale_order.invoice_ids.button_cancel()
+                except Exception as ex:
+                    post_message = 'invoice couldn\'t be cancelled: {}'.format(ex)
+                    logger.debug(post_message)
+                    sale_order.message_post(body=post_message)
+                    warnings.append(post_message)
                 else:
-                    try:
-                        sale_order.invoice_ids.action_cancel()
-                    except Exception as ex:
-                        warnings.append(
-                            'invoice couldn\'t be cancelled: {}'.format(ex)
-                        )
+                    post_message = 'Invoice cancelled'
+                    logger.debug(post_message)
+                    sale_order.message_post(body=post_message)
+
             return results.success_result(data=False, warnings=warnings)
 
     def _validate_order_fields(self, order_data):

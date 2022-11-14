@@ -114,19 +114,13 @@ class ProductTemplate(models.Model):
 
         logger.debug("### SEARCH BARCODE : {} ###".format(product_data.get('barcode')))
         if 'barcode' in product_data:
-            if product_data.get('barcode'):
-                product_ids = self.env['product.product'].sudo().search([('barcode', '=', product_data.get('barcode', ''))], limit=1)
-                logger.debug(product_ids.ids)
+            barcode = product_data.get('barcode')
+            if barcode:
+                
+                product_ids = self.env['product.product'].with_context(active_test=False).search([('barcode', '=', barcode)])
                 if product_ids.ids:
-                    return results.error_result(code='duplicated_barcode',
-                                                description='El codigo de barras ya esta previamente registrado')
-                else:
-                    product_ids = self.env['product.product'].sudo().search([('barcode', '=', product_data.get('barcode', '')), ('active', '=', False)], limit=1)
-                    logger.debug(product_ids.ids)
-                    if product_ids.ids:
-                        return results.error_result(code='duplicated_barcode',
-                                                description='El codigo de barras ya esta previamente registrado')
-
+                    logger.warning(f'El codigo de barras ya esta previamente registrado {barcode}')
+                    product_data.pop('barcode')
             else:
                 logger.debug("## DROP EMPTY BARCODE ##")
                 product_data.pop('barcode')
@@ -440,13 +434,11 @@ class ProductTemplate(models.Model):
         :rtype: dict
         :return:
         """
-        product = self.with_context(active_test=False) \
-                      .search([('id', '=', template_id)])
+        product = self.search([('id', '=', template_id)])
+
         if not product:
-            return results.error_result(
-                'product_not_found',
-                'The product that you are trying to delete doesn\'t exists or is deleted already'
-            )
+            return results.success_result()
+
         try:
             if id_shop:
                 yuju_mapping = self.env['yuju.mapping'].sudo()

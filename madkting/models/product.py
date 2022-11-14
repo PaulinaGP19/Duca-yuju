@@ -253,23 +253,17 @@ class ProductProduct(models.Model):
         # logger.debug(fields_validation['data'])
 
         if "barcode" in fields_validation["data"]: 
-            if fields_validation["data"]["barcode"] == "":
+            barcode = fields_validation["data"]["barcode"]
+            if barcode == "":
                 # Drop empty barcode because constraint product_product_barcode_uniq
                 fields_validation["data"].pop("barcode")
+                logger.debug("Pop barcode..")
             else:
                 logger.debug("## SEARCH BARCODE UPDATE ##")
-                barcode = fields_validation["data"]["barcode"]
-                product_ids = self.sudo().search([('barcode', '=', barcode)], limit=1)
-                logger.debug(product_ids.ids)
+                product_ids = self.with_context(active_test=False).search([('barcode', '=', barcode), ('id', '!=', product_id)])
                 if product_ids.ids:
-                    return results.error_result(code='duplicated_barcode',
-                                                description='El codigo de barras ya esta previamente registrado')
-                else:
-                    product_ids = self.sudo().search([('barcode', '=', barcode), ('active', '=', False)], limit=1)
-                    logger.debug(product_ids.ids)
-                    if product_ids.ids:
-                        return results.error_result(code='duplicated_barcode',
-                                                description='El codigo de barras ya esta previamente registrado')
+                    logger.warning(f'El codigo de barras ya esta previamente registrado {barcode}')
+                    fields_validation["data"].pop("barcode")
 
         try:
             product.write(fields_validation['data'])
@@ -325,16 +319,18 @@ class ProductProduct(models.Model):
         if not fields_validation['success']:
             return fields_validation
 
-        if variation_data.get('barcode'):
-            product_ids = self.search([('barcode', '=', variation_data.get('barcode', ''))], limit=1)
-            if product_ids.ids:
-                return results.error_result(code='duplicated_barcode',
-                                            description='El codigo de barras ya esta previamente registrado')
+        if "barcode" in variation_data: 
+            barcode = variation_data.get("barcode")
+            if barcode == "":
+                # Drop empty barcode because constraint product_product_barcode_uniq
+                variation_data.pop("barcode")
+                logger.debug("Pop barcode..")
             else:
-                product_ids = self.search([('barcode', '=', variation_data.get('barcode', '')), ('active', '=', False)], limit=1)
+                logger.debug("## SEARCH BARCODE UPDATE ##")
+                product_ids = self.with_context(active_test=False).search([('barcode', '=', barcode)])
                 if product_ids.ids:
-                    return results.error_result(code='duplicated_barcode',
-                                            description='El codigo de barras ya esta previamente registrado')
+                    logger.warning(f'El codigo de barras ya esta previamente registrado {barcode}')
+                    variation_data.pop("barcode")
 
         attributes_structure = parent.attribute_lines_structure()
         variant_attributes = fields_validation['data'].pop('attributes')
