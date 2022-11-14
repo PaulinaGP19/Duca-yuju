@@ -28,7 +28,7 @@ class SaleOrder(models.Model):
     channel_order_reference = fields.Char('Marketplace Reference')
     channel_order_id = fields.Char('Marketplace Id')
     channel_order_market_fee = fields.Float('Channel Marketplace Fee')
-    channel_order_shipping_cost = fields.Float('Seller Shipping Cost')
+    channel_order_shipping_cost = fields.Float('Shipping Cost')
     order_progress = fields.Char('Order Progress')
     payment_status = fields.Char('Payment Status')
     payment_id = fields.Integer('Pago Id')
